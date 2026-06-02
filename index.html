@@ -305,7 +305,8 @@
             <input type="range" id="foodVolumeSlider" min="0.05" max="0.35" step="0.05" value="0.2">
             <div class="row"><label>Volume</label><span id="foodVolumeVal">0.20 ml</span></div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px">
-              Median ≈ 0.20 ml = standard 60 mm NGM plate seeded with OP50
+              60 mm plate: 0.05 ml ≈ 50 µL drop lawn · 0.20 ml ≈ fully spread lawn.
+              OP50 stock OD₆₀₀ 1.0–1.5 (~8×10⁸ cells/ml/OD).
             </div>
             <!-- Consumption rate — auto-fixed to strain, read-only display -->
             <select id="consumptionSelect" style="display:none">
@@ -626,10 +627,10 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/app.js?v=36"></script>
-<script type="module" src="js/plateApp.js?v=36"></script>
+<script type="module" src="js/app.js?v=42"></script>
+<script type="module" src="js/plateApp.js?v=42"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=36';
+  import { initMobile } from './js/mobile.js?v=42';
   initMobile();
 </script>
 </body>

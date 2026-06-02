@@ -79,6 +79,18 @@ const BASE_STAGES = [
 ];
 
 // ── Strain definitions ────────────────────────────────────────────────────────
+//
+// dafClass drives dauer behaviour throughout the app:
+//   'wild'  — facultative: enters dauer only under stress (crowding / starvation /
+//             high temp). Wild-type N2 and morphology/DR mutants.
+//   'daf-c' — Dauer-constitutive: enters dauer even under favourable conditions.
+//             Mutations in POSITIVE regulators (DAF-2/insulin/IGF-1 receptor;
+//             DAF-7/TGF-β ligand, DAF-1 receptor). Most are temperature-sensitive:
+//             ~100% dauer at 25 °C, reduced at 20/15 °C.
+//   'daf-d' — Dauer-defective: CANNOT form dauer, and suppresses daf-c phenotypes.
+//             Loss of DAF-16/FOXO, or DAF-3/DAF-5 in the TGF-β branch.
+// Sources: WormBook dauer chapter (NBK535516); Gottlieb & Ruvkun 1994 (PMC1205929);
+//   Golden & Riddle 1984; WormBook TGF-β signalling chapter. See DAUER below.
 export const STRAINS = {
   N2: {
     id: 'N2',
@@ -87,13 +99,17 @@ export const STRAINS = {
     stageScale: {},         // per-stage multipliers (empty = N2 baseline)
     globalScale: 1.0,       // applied to all stages
     tempScaleOverride: {},  // {temp: scaleFactor} — overrides Q10 at specific temps
-    dauerTemps: [],         // temps at which this strain reliably enters dauer
+    dafClass: 'wild',
+    dauerTemps: [],         // no constitutive dauer at selectable temps (10/20/25 °C)
+    dauerTempPartial: [27], // a small fraction enter dauer at 27 °C (not selectable here)
     maxEggs: 300,
     lifespan20C: '~20 days',
     notes: 'Standard wild-type reference. All baseline timings.',
     phenotype: 'Normal morphology, behavior, and lifespan.',
-    dauerNotes: 'Rarely enters dauer under standard laboratory conditions.',
-    refs: 'Corsi et al. 2015 (WormBook); Boyle et al. 2022 (PMC9047341)',
+    dauerNotes: 'Facultative: does NOT enter dauer at ≤25 °C while food is present. ' +
+      'Stress (crowding pheromone, starvation) drives dauer; a small proportion enter ' +
+      'at 27 °C, sufficient even without pheromone.',
+    refs: 'Golden & Riddle 1984; Ailion & Thomas 2000; WormBook dauer (NBK535516); Corsi et al. 2015',
   },
 
   'dpy-13': {
@@ -103,31 +119,78 @@ export const STRAINS = {
     stageScale: {},
     globalScale: 1.05,      // no published difference; very slight delay assumed
     tempScaleOverride: {},
+    dafClass: 'wild',
     dauerTemps: [],
     maxEggs: 280,
     lifespan20C: '~18–20 days',
     notes: 'Collagen gene mutation. Body ~60–70% of N2 length.',
     phenotype: 'Short (Dpy), fat body. Normal behavioral repertoire.',
-    dauerNotes: 'Normal dauer response (same as N2).',
+    dauerNotes: 'Normal (facultative) dauer response, same as N2.',
     refs: 'Brenner 1974; Levy et al. 1993',
   },
 
   'daf-2': {
     id: 'daf-2',
-    label: 'daf-2 (e1370) — Insulin receptor',
+    label: 'daf-2 (e1370) — Insulin/IGF-1 receptor',
     color: '#7c3aed',
     // L2 stage is most dramatically extended (>2×); other stages ~1.3–1.5×
     stageScale: { egg: 1.1, l1: 1.3, l2: 2.2, l3: 1.4, l4: 1.5, young_adult: 1.4, adult: 2.0 },
     globalScale: 1.0,       // per-stage overrides above take precedence
     tempScaleOverride: {},
-    dauerTemps: [25],       // 100% dauer at 25°C
-    dauerTempPartial: [20], // low penetrance dauer at 20°C
+    dafClass: 'daf-c',
+    dauerTemps: [25],       // ts Daf-c: ~100% dauer at 25 °C
+    dauerTempPartial: [20], // reduced, allele/assay-dependent penetrance at 20 °C
     maxEggs: 200,           // reduced progeny
     lifespan20C: '~40–50 days (~2× N2)',
-    notes: 'Insulin/IGF-1 receptor (ortholog of human INSR). Extended lifespan. Dauer-prone.',
-    phenotype: 'Normal morphology. ~2× lifespan. ~2× slower development. 100% dauer at 25°C.',
-    dauerNotes: '100% dauer entry at 25°C. Low-penetrance dauer at 20°C (<1% under normal food).',
-    refs: 'Kenyon et al. 1993 (Nature); Gems et al. 1998; Corsi et al. 2015',
+    notes: 'Insulin/IGF-1 receptor (ortholog of human INSR). Extended lifespan. Dauer-constitutive.',
+    phenotype: 'Normal morphology. ~2× lifespan. ~2× slower development. ~100% dauer at 25 °C.',
+    dauerNotes: 'Temperature-sensitive Daf-c: ~100% dauer at 25 °C; reduced at 20 °C ' +
+      '(~15% commonly cited for e1370, but allele/assay-dependent — ~1% for some ts alleles); ' +
+      'maintained at 15 °C. NOTE: strong/null daf-2 (and age-1/daf-23) alleles arrest as dauer ' +
+      'NON-conditionally (temperature-independent) and do not recover.',
+    refs: 'Gottlieb & Ruvkun 1994 (PMC1205929); Pierce et al. 2001 (PMC312654); ' +
+      'Gems et al. 1998; WormBook dauer (NBK535516); Kenyon et al. 1993',
+  },
+
+  'daf-7': {
+    id: 'daf-7',
+    label: 'daf-7 (e1372) — TGF-β ligand',
+    color: '#06b6d4',
+    // ts Daf-c; development similar to N2 when not arresting, slight L2 prolongation
+    stageScale: { l2: 1.3 },
+    globalScale: 1.0,
+    tempScaleOverride: {},
+    dafClass: 'daf-c',
+    dauerTemps: [25],       // ts Daf-c: ~100% dauer at 25 °C
+    dauerTempPartial: [20], // reduced penetrance at 20 °C (allele/assay-dependent)
+    maxEggs: 290,
+    lifespan20C: '~20 days (≈N2 when grown non-dauer)',
+    notes: 'TGF-β superfamily ligand expressed in ASI sensory neurons; normally relays the ' +
+      '"favourable conditions" signal. Loss → constitutive dauer. Upstream of daf-1/daf-4 → daf-8/daf-14.',
+    phenotype: 'Normal morphology. ~100% dauer at 25 °C; develops reproductively at lower temps.',
+    dauerNotes: 'Temperature-sensitive Daf-c: ~100% dauer at 25 °C, dauers form by ~48 h; ' +
+      'reduced dauer at 20/15 °C; maintained at 15 °C. (The 22.5%-at-20 °C figure failed ' +
+      'cross-checking and is NOT used.)',
+    refs: 'WormBook TGF-β signalling; WormBook dauer (NBK535516); Shaw et al. 2007 (PMC3124252)',
+  },
+
+  'daf-1': {
+    id: 'daf-1',
+    label: 'daf-1 (m40) — TGF-β type-I receptor',
+    color: '#0ea5e9',
+    stageScale: { l2: 1.3 },
+    globalScale: 1.0,
+    tempScaleOverride: {},
+    dafClass: 'daf-c',
+    dauerTemps: [25],       // ts Daf-c, like other TGF-β branch members
+    dauerTempPartial: [20],
+    maxEggs: 290,
+    lifespan20C: '~20 days (≈N2 when grown non-dauer)',
+    notes: 'Type-I TGF-β receptor for the DAF-7 ligand. Loss disrupts the favourable-conditions ' +
+      'signal → constitutive dauer. Suppressed by daf-3/daf-5 (Daf-d).',
+    phenotype: 'Normal morphology. Temperature-sensitive constitutive dauer.',
+    dauerNotes: 'Temperature-sensitive Daf-c: high dauer penetrance at 25 °C, reduced at 20/15 °C.',
+    refs: 'WormBook TGF-β signalling; Georgi et al. 1990; WormBook dauer (NBK535516)',
   },
 
   'daf-16': {
@@ -137,13 +200,53 @@ export const STRAINS = {
     stageScale: {},
     globalScale: 0.97,      // nearly identical to N2; slight acceleration reported
     tempScaleOverride: {},
-    dauerTemps: [],         // cannot form dauer (daf-16 required for dauer)
+    dafClass: 'daf-d',
+    dauerTemps: [],         // Dauer-defective — cannot form dauer
     maxEggs: 300,
     lifespan20C: '~14–16 days (slightly reduced vs N2)',
-    notes: 'FOXO transcription factor, downstream of daf-2/PI3K pathway. Suppresses daf-2 longevity.',
+    notes: 'FOXO transcription factor, the key effector downstream of daf-2/PI3K. ' +
+      'Required for dauer; epistatic to daf-2/age-1.',
     phenotype: 'Normal morphology. Slightly shortened lifespan. Cannot enter dauer.',
-    dauerNotes: 'Cannot form dauer — daf-16 is required for all dauer-related gene expression.',
-    refs: 'Lin et al. 1997; Ogg et al. 1997',
+    dauerNotes: 'Dauer-DEFECTIVE: cannot form dauer (DAF-16 is required for the dauer program) ' +
+      'and suppresses the dauer-constitutive phenotype of daf-2 and age-1/daf-23. ' +
+      'Under starvation, larvae die instead of arresting.',
+    refs: 'Gottlieb & Ruvkun 1994 (PMC1205929); Lin et al. 1997; Ogg et al. 1997',
+  },
+
+  'daf-3': {
+    id: 'daf-3',
+    label: 'daf-3 (e1376) — Co-Smad (Daf-defective)',
+    color: '#f43f5e',
+    stageScale: {},
+    globalScale: 1.0,
+    tempScaleOverride: {},
+    dafClass: 'daf-d',
+    dauerTemps: [],         // Dauer-defective
+    maxEggs: 300,
+    lifespan20C: '~20 days (≈N2)',
+    notes: 'Co-Smad acting downstream of the DAF-7/TGF-β branch; normally inhibited by DAF-7 ' +
+      'signalling. Loss blocks dauer and suppresses TGF-β-branch Daf-c mutants (daf-7/daf-1/daf-4).',
+    phenotype: 'Normal morphology. Dauer-defective.',
+    dauerNotes: 'Dauer-DEFECTIVE: cannot form dauer via the TGF-β branch; suppresses daf-7/daf-1 Daf-c.',
+    refs: 'Patterson et al. 1997; WormBook TGF-β signalling; WormBook dauer (NBK535516)',
+  },
+
+  'daf-5': {
+    id: 'daf-5',
+    label: 'daf-5 (e1386) — Sno/Ski (Daf-defective)',
+    color: '#fb7185',
+    stageScale: {},
+    globalScale: 1.0,
+    tempScaleOverride: {},
+    dafClass: 'daf-d',
+    dauerTemps: [],         // Dauer-defective
+    maxEggs: 300,
+    lifespan20C: '~20 days (≈N2)',
+    notes: 'Sno/Ski-family partner of DAF-3 in the TGF-β branch. Loss blocks dauer and ' +
+      'suppresses TGF-β-branch Daf-c mutants.',
+    phenotype: 'Normal morphology. Dauer-defective.',
+    dauerNotes: 'Dauer-DEFECTIVE: cannot form dauer via the TGF-β branch; suppresses daf-7/daf-1 Daf-c.',
+    refs: 'da Graca et al. 2004; Tewari et al. 2004; WormBook TGF-β signalling',
   },
 
   'eat-2': {
@@ -153,12 +256,13 @@ export const STRAINS = {
     stageScale: {},
     globalScale: 1.15,      // ~15% slower due to reduced food intake
     tempScaleOverride: {},
+    dafClass: 'wild',
     dauerTemps: [],
     maxEggs: 150,           // fewer progeny due to dietary restriction
     lifespan20C: '~28–30 days (~1.4× N2)',
     notes: 'Nicotinic acetylcholine receptor subunit. Reduced pharyngeal pumping → dietary restriction.',
     phenotype: 'Thin body, reduced pumping rate (~45% of N2). Extended lifespan via DR.',
-    dauerNotes: 'Normal dauer response.',
+    dauerNotes: 'Normal (facultative) dauer response.',
     refs: 'Raizen et al. 1995; Lakowski & Hekimi 1998',
   },
 
@@ -169,13 +273,17 @@ export const STRAINS = {
     stageScale: {},
     globalScale: 1.0,       // NO developmental timing difference from N2 (Friedman & Johnson 1988)
     tempScaleOverride: {},
+    dafClass: 'wild',       // hx546 is a weak/ts allele: near-normal facultative dauer
     dauerTemps: [],
+    dauerTempPartial: [27], // weak allele shows dauer mainly at high temp
     maxEggs: 290,
     lifespan20C: '~29–40 days (~1.4–2× N2)',
     notes: 'Catalytic subunit of PI3K (upstream of daf-16). Extended lifespan entirely post-reproductive.',
     phenotype: 'Normal morphology and development. Lifespan extension only after reproduction.',
-    dauerNotes: 'Normal dauer response at 25°C.',
-    refs: 'Friedman & Johnson 1988; Morris et al. 1996',
+    dauerNotes: 'The weak hx546 allele is near-normal (facultative). NOTE: strong/null age-1 ' +
+      '(= daf-23) alleles are NON-conditional Daf-c — ~100% dauer arrest at all temperatures, ' +
+      'do not recover, suppressed by daf-16.',
+    refs: 'Gottlieb & Ruvkun 1994 (PMC1205929); Friedman & Johnson 1988; Morris et al. 1996',
   },
 
   custom: {
@@ -185,14 +293,63 @@ export const STRAINS = {
     stageScale: {},
     globalScale: 1.0,
     tempScaleOverride: {},
+    dafClass: 'wild',
     dauerTemps: [],
     maxEggs: 300,
     lifespan20C: 'Unknown',
     notes: 'User-defined strain. Timing defaults to N2 unless observations indicate otherwise.',
     phenotype: 'Unknown.',
-    dauerNotes: 'Unknown.',
+    dauerNotes: 'Unknown — assumed facultative (wild-type-like) until observations indicate otherwise.',
     refs: '',
   },
+};
+
+/**
+ * DAUER — verified quantitative metrics for the dauer larva, used to parameterize
+ * the simulation. Every figure here was cross-checked across ≥2 independent sources
+ * (deep-research pass, 2026-06-02). Temperatures in °C, times in hours.
+ *
+ * Sources: Golden & Riddle 1984 (PNAS/Dev Biol; PMID 6706004); Ailion & Thomas 2000
+ *   (Genetics 156:1047; PMID 11063684); Gottlieb & Ruvkun 1994 (PMC1205929);
+ *   Pierce et al. 2001 (PMC312654); WormBook dauer chapter (NBK535516); Klass & Hirsh 1976.
+ */
+export const DAUER = {
+  // ── Decision & commitment (the L1 → L2d → dauer pathway) ──
+  decisionStages: ['l1', 'l2'],   // larva decides in late L1; commits at the L2d molt
+  commitStage: 'l2',              // irreversible commitment a few hours before mid-L2d molt
+  // Dauer morphogenesis (radial shrinkage → SDS-resistant) takes far longer than a normal molt
+  morphogenesisHrs25C: 11.5,      // L2d→dauer molt ~11–12 h at 25 °C (vs 1–2 h for other molts)
+
+  // ── Strain-specific time-to-dauer at 25 °C (hours from synchronized L1 on food) ──
+  formByHrs25C: { 'daf-7': 48, 'daf-2': 80 },
+
+  // ── Environmental triggers ──
+  // Three cues integrate via DAF-7/TGF-β + DAF-2/insulin onto DAF-16/FOXO.
+  triggers: {
+    crowding: 'Population-density pheromone (ascarosides) — dose-dependent; commits at L2d molt.',
+    starvation: 'Food (E. coli) scarcity — food competitively antagonizes pheromone and promotes recovery.',
+    temperature: 'Higher temp raises dauer fraction (15→25 °C); 27 °C is a standalone trigger.',
+  },
+  maxDauerOnLawnPct: 90,          // ≤~90% achievable on an E. coli lawn; 100% only in liquid + limited food
+  highTempThresholdC: 27,         // 27 °C drives dauer in WT even without pheromone
+  tempSensitivePeriod: 'l1',      // temperature acts around the L1 molt (distinct from L2d commitment)
+
+  // ── Survival without food (non-aging, lives off stored lipids) ──
+  survivalHoursTypical: 60 * 24,  // ~2 months routinely
+  survivalHoursMax: 120 * 24,     // up to ~4 months (Klass & Hirsh 1976)
+
+  // ── Recovery / exit (food return or temperature downshift) ──
+  recoveryCommitMinutes: [50, 60],// commits to recovery 50–60 min after reaching food (23 °C)
+  recoveryFeedingHrs: [2, 3],     // resumes feeding within 2–3 h
+  recoveryTempDownpulseHrs: 10,   // a 10 h 25→15 °C downpulse induces ~50% recovery
+
+  // ── L1 starvation survival for dauer-DEFECTIVE strains (cannot arrest as dauer) ──
+  l1ArrestSurvivalHrs: 12 * 24,   // L1 arrest survives ~1–2 weeks; older larvae die sooner
+
+  // ── Behavioral / morphological hallmarks ──
+  nonFeeding: true,               // pharynx constricted + buccal plug → 0 food intake
+  radiallyConstricted: true,      // longer & thinner than L3
+  sdsResistant: true,             // survives 1% SDS ~30 min (thickened cuticle)
 };
 
 // ── Stage computation ─────────────────────────────────────────────────────────
@@ -222,10 +379,12 @@ export function getStages(strainId = 'N2', tempC = 20) {
   });
 }
 
-/** Synthetic dauer stage timeline for strains that arrest at 25°C. */
+/** Synthetic dauer stage timeline for Daf-constitutive strains that arrest at 25°C.
+ *  The larva develops through egg → L1 → L2(d), then enters dauer at the L2d molt
+ *  (commitment a few hours before the mid-L2d molt). Dauer morphogenesis itself
+ *  takes ~11–12 h at 25 °C (DAUER.morphogenesisHrs25C), far longer than the 1–2 h
+ *  of a normal molt, after which the larva survives for months without feeding. */
 function getDauerStages(strain, tempC) {
-  // Dauer typically occurs at L2d (between L2 and L3)
-  // Show partial normal development then dauer arrest
   const q10Scale = Math.pow(Q10_LARVAL, (20 - tempC) / 10);
   let cursor = 0;
   const preStages = ['egg','l1','l2'].map(id => {
@@ -235,12 +394,18 @@ function getDauerStages(strain, tempC) {
     cursor += dur;
     return stage;
   });
+  // Dauer survival is temperature-scaled around the ~4-month maximum (Klass & Hirsh 1976).
+  const survivalHrs = DAUER.survivalHoursMax * q10Scale;
   const dauerStage = {
     id: 'dauer', name: 'Dauer Larva', icon: '💤', color: '#94a3b8',
-    start: cursor, end: cursor + 240, duration: 240,
-    description: `At ${tempC}°C, ${strain.id} worms enter dauer larva at the L2d checkpoint. Dauer is a stress-resistant, long-lived, non-feeding alternative L3 stage.`,
-    visibleSigns: 'Darker, non-feeding, elongated. Gut granules visible. May form "daisy-chains".',
-    size: '~500 μm, slender and straight',
+    start: cursor, end: cursor + survivalHrs, duration: survivalHrs,
+    morphogenesisHrs: DAUER.morphogenesisHrs25C * q10Scale,
+    description: `At ${tempC}°C, ${strain.id} commits to dauer at the L2d molt. Dauer is a ` +
+      `stress-resistant, non-aging, non-feeding alternative to L3 that survives months ` +
+      `(up to ~4 mo) without food and exits within hours once food returns.`,
+    visibleSigns: 'Radially constricted (longer & thinner), non-feeding (sealed buccal cavity), ' +
+      'SDS-resistant. Darkened gut granules. May form "daisy-chains".',
+    size: '~500 μm, slender and straight (radially constricted)',
     tempC, strainId: strain.id, isDauer: true,
     trackEggs: false,
   };
@@ -273,17 +438,47 @@ export function getTotalHours(strainId = 'N2', tempC = 20) {
 }
 
 /**
- * Relative bacterial-food consumption per stage (normalised to adult = 1.0).
- * Derived from pharyngeal pumping rate × body biomass:
+ * Relative bacterial-food intake per stage (normalised to adult = 1.0).
+ * Intake = pumping rate × volume ingested per pump.
  *  • Eggs do NOT feed (sealed eggshell) → 0
- *  • Pumping rises L1 (~150/min) → adult (~250–300/min); biomass grows ~1000×
- *    from L1 (~250 µm) to adult (~1 mm), so intake scales steeply with stage.
- *  • DAUER does NOT feed (pharynx constricted, mouth sealed) → 0
- * (Avery 1993; Fang-Yen et al. 2009; WormBook feeding/pharynx chapters.)
+ *  • VERIFIED (eLife 2022, Bonnard et al., >1000 animals): pumping RATE rises only
+ *    SLIGHTLY across larval stages — it is NOT the main driver of the intake ramp,
+ *    and per-worm intake does NOT scale linearly with body length (R²=0.753 refuted).
+ *    Adults pump ~200–300/min (≈250 typical, ≈300 max); larvae pump nearly as fast.
+ *  • So the steep ramp below reflects GULP VOLUME (pharynx/body size grows ~L1 250 µm →
+ *    adult ~1 mm), not pumping speed. young_adult ≈ L4-and-up (rate plateaus there).
+ *  • DAUER does NOT feed (pharynx constricted, buccal plug) → 0
+ * (Bonnard et al. 2022 eLife 77252; Avery 1993; WormBook pharynx/feeding NBK116080.)
  */
 export const STAGE_FOOD_FACTOR = {
-  egg: 0, l1: 0.10, l2: 0.25, l3: 0.45, l4: 0.70,
+  egg: 0, l1: 0.12, l2: 0.25, l3: 0.45, l4: 0.70,
   young_adult: 0.90, adult: 1.0, dauer: 0,
+};
+
+/**
+ * FOOD — verified reference constants for the OP50 bacterial lawn, used to label the
+ * food slider and (optionally) convert OD600 measurements. Cross-checked across ≥2
+ * sources (deep-research pass, 2026-06-02). NOTE: dry-mass (mg/mL, g/L) and CFU-per-mg
+ * conversions were REFUTED in verification and are deliberately omitted — only the
+ * cells/mL ↔ OD600 conversion survived.
+ *
+ * Sources: WormBook maintenance (NBK19649); Stroustrup-style protocol (PMC7307455);
+ *   Bonnard et al. 2022 (eLife 77252); WormBook pharynx (NBK116080); Genes&Dev 22:2149.
+ */
+export const FOOD = {
+  // Typical OP50 seeding volumes (lab-variable; overall range ~10–300 µL).
+  seedingUL: { '35mm': 25, '60mm_drop': 50, '60mm_spread': 200, '100mm': 100 },
+  // The app's food slider is in mL of seeded OP50 suspension:
+  //   0.05 mL ≈ a standard 50 µL centred drop lawn on a 60 mm plate
+  //   0.20 mL ≈ a fully spread / concentrated lawn on a 60 mm plate (slider default)
+  defaultMl: 0.2,
+  // OD600 → live cell density (the surviving conversion; strain-dependent 2e7–1e9/mL).
+  cellsPerMlPerOD: 8e8,
+  typicalFoodOD: [1.0, 1.5],   // OP50 feeding stocks are usually OD600 1.0–1.5
+  // Adult pharyngeal pumping (feeding present); larvae pump nearly as fast.
+  adultPumpPerMin: [200, 300],
+  adultPumpTypical: 250,
+  nonFeedingStages: ['egg', 'dauer'],   // eggs sealed; dauer has a buccal plug
 };
 
 /**

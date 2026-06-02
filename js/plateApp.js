@@ -3,18 +3,18 @@
  * growth troubleshooter, and session management UI.
  */
 
-import { initPlateUI, renderPlateList, renderPlateDetail, pt } from './plateUI.js?v=31';
-import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=31';
-import { Troubleshooter }       from './Troubleshooter.js?v=31';
-import { SessionManager }       from './SessionManager.js?v=31';
-import { showToast, showConfirm } from './Toast.js?v=31';
-import { checkWelcome }          from './WelcomeScreen.js?v=31';
-import { showFeedback }          from './Feedback.js?v=31';
-import { RealWorldData, POINT_SCHEMA } from './RealWorldData.js?v=31';
-import { MLEngine }        from './MLEngine.js?v=31';
-import { ExportManager }   from './ExportManager.js?v=31';
-import { drawComparisonChart } from './ComparisonChart.js?v=31';
-import { openCompareModal }   from './CompareCharts.js?v=31';
+import { initPlateUI, renderPlateList, renderPlateDetail, pt } from './plateUI.js?v=42';
+import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=42';
+import { Troubleshooter }       from './Troubleshooter.js?v=42';
+import { SessionManager }       from './SessionManager.js?v=42';
+import { showToast, showConfirm } from './Toast.js?v=42';
+import { checkWelcome }          from './WelcomeScreen.js?v=42';
+import { showFeedback }          from './Feedback.js?v=42';
+import { RealWorldData, POINT_SCHEMA } from './RealWorldData.js?v=42';
+import { MLEngine }        from './MLEngine.js?v=42';
+import { ExportManager }   from './ExportManager.js?v=42';
+import { drawComparisonChart } from './ComparisonChart.js?v=42';
+import { openCompareModal }   from './CompareCharts.js?v=42';
 
 const ml = new MLEngine();
 const em = new ExportManager(pt);
@@ -285,8 +285,37 @@ function initCollapsible(toggleId, bodyId, storageKey, defaultOpen = false) {
   });
 }
 
+// ── Strain dropdowns ──────────────────────────────────────────────────────────
+// Populate the strain <select>s from STRAINS so adding a strain in LifeCycle.js
+// automatically appears everywhere (no more hand-maintained hardcoded <option>s).
+function populateStrainSelects() {
+  const entries = Object.values(STRAINS);
+  const plateSel = document.getElementById('plateStrainSelect');
+  if (plateSel) {
+    const prev = plateSel.value;
+    // Full labels; 'custom' kept last (its own definition already sorts after the rest).
+    plateSel.innerHTML = entries
+      .map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+    if ([...plateSel.options].some(o => o.value === prev)) plateSel.value = prev;
+  }
+  const lcSel = document.getElementById('lcStrainSelect');
+  if (lcSel) {
+    const prev = lcSel.value;
+    // Reference view: short ids, exclude the user-defined 'custom' (no reference data).
+    lcSel.innerHTML = entries.filter(s => s.id !== 'custom')
+      .map(s => `<option value="${s.id}">${s.id}</option>`).join('');
+    if ([...lcSel.options].some(o => o.value === prev)) lcSel.value = prev;
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
+populateStrainSelects();
 initPlateUI();
+// Initial render of the plate list + detail. Without this, returning users
+// (welcome screen suppressed) land on an empty list with no "View Plate" buttons —
+// the 1-second live loop only patches existing cards, it never builds them.
+renderPlateList();
+renderPlateDetail();
 // Show welcome screen on first visit
 checkWelcome();
 renderLifeCycleReference(20, 'N2');

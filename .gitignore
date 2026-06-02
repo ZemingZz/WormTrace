@@ -1,0 +1,10 @@
+# Editor / tooling
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / temp
+*.log

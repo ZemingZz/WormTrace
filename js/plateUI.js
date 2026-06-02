@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=36';
-import { PlateCanvas }       from './PlateCanvas.js?v=36';
-import { showToast, showConfirm } from './Toast.js?v=36';
-import { showFeedback }      from './Feedback.js?v=36';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=42';
+import { PlateCanvas }       from './PlateCanvas.js?v=42';
+import { showToast, showConfirm } from './Toast.js?v=42';
+import { showFeedback }      from './Feedback.js?v=42';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
-  STAGE_FOOD_FACTOR,
-} from './LifeCycle.js?v=36';
+  STAGE_FOOD_FACTOR, DAUER,
+} from './LifeCycle.js?v=42';
 
 export const pt = new PlateTracker();
 
@@ -371,22 +371,23 @@ function effectiveEggs(plate) {
 }
 
 /**
- * Can this strain form dauer?
- *  • daf-16 — Daf-defective: daf-16/FOXO is REQUIRED for dauer; loss-of-function
- *    cannot enter dauer (Lin et al. 1997; Ogg et al. 1997).
- *  • daf-2 — excluded here per lab configuration (modelled as non-dauer in this app;
- *    note: wild daf-2 alleles are temperature-sensitive Daf-constitutive at 25°C).
- *  All other strains form dauer normally under starvation/crowding.
+ * Can this strain form dauer? Driven by the verified Daf classification in STRAINS:
+ *  • 'daf-d' (daf-16, daf-3, daf-5) — Dauer-DEFECTIVE: DAF-16/FOXO is required for the
+ *    dauer program, and DAF-3/DAF-5 are required in the TGF-β branch. These CANNOT
+ *    form dauer and die under prolonged starvation instead.
+ *  • 'wild' and 'daf-c' — form dauer under stress (daf-c constitutively; wild facultatively).
+ *  (Gottlieb & Ruvkun 1994; WormBook dauer NBK535516; WormBook TGF-β signalling.)
  */
 function canFormDauer(strainId) {
-  return strainId !== 'daf-16' && strainId !== 'daf-2';
+  return (STRAINS[strainId] ?? STRAINS.N2).dafClass !== 'daf-d';
 }
 
-/** Only L1 larvae commit to the dauer pathway (the decision is made in L1 →
- *  L2d → dauer). Eggs hatch to L1 first; L2+ larvae & adults can no longer
- *  enter dauer and instead die under starvation. */
+/** Larvae commit to the dauer pathway during the late-L1 → L2d window (irreversible
+ *  commitment at the L2d molt; Golden & Riddle 1984). Eggs hatch to L1 first; from
+ *  L3 onward larvae & adults can no longer enter dauer and die under starvation.
+ *  Window taken from DAUER.decisionStages. */
 function stageCanEnterDauer(stageId) {
-  return stageId === 'l1';
+  return DAUER.decisionStages.includes(stageId);
 }
 
 /**
@@ -419,16 +420,19 @@ function computePopulation(plate, hrs) {
     const starvedHrs = hrs - foodOutHrs;
     // Fate fixed by the stage the worms were in WHEN food ran out (dauers freeze).
     const stageOut = getCurrentStage(foodOutHrs, strainId, tempC).stage;
-    const wasL1 = stageCanEnterDauer(stageOut.id) || stageOut.id === 'egg';
-    if (wasL1 && canFormDauer(strainId)) {
+    // Could these worms still commit to dauer when food ran out? (late-L1 → L2d window)
+    const inDauerWindow = stageCanEnterDauer(stageOut.id) || stageOut.id === 'egg';
+    if (inDauerWindow && canFormDauer(strainId)) {
       dauer = wormCount; alive = 0; displayStageId = 'dauer';
-      note = '🍽 Food exhausted at L1 → worms entered DAUER (stress-resistant arrest). They survive until food returns.';
+      note = '🍽 Food exhausted in the L1/L2d window → worms entered DAUER (stress-resistant arrest). They survive months until food returns.';
     } else {
-      const SURVIVAL = wasL1 ? 144 : 96;   // L1-arrest survives longer than older larvae
+      // Dauer-defective or past the decision window → starve. L1-arrest survives
+      // ~1–2 weeks (DAUER.l1ArrestSurvivalHrs); older larvae/adults die sooner.
+      const SURVIVAL = inDauerWindow ? DAUER.l1ArrestSurvivalHrs : 96;
       if (starvedHrs >= SURVIVAL) { dead = wormCount; alive = 0;
-        note = wasL1
-          ? `☠ Food gone at L1 & cannot form dauer (${strainId}) → worms DIED of starvation.`
-          : '☠ Food exhausted past L1 → worms can\'t form dauer and DIED of starvation.';
+        note = inDauerWindow
+          ? `☠ Food gone at L1/L2d & cannot form dauer (${strainId}, Daf-defective) → worms DIED of starvation.`
+          : '☠ Food exhausted past the L2d window → worms can\'t form dauer and DIED of starvation.';
       } else {
         note = `⚠ Food exhausted (${stageOut.name}) — can't form dauer, dying in ~${fmtHours(SURVIVAL - starvedHrs)}.`;
       }
@@ -886,9 +890,9 @@ function buildLifeTimeline(plate) {
   const eggDur   = stages[0].duration;
   const layWindow = 80;
   const lifespan = adultStart + 16 * 24;              // adult death age (~18–20 d)
-  // Dauer survival: dauers live off stored lipids and survive ~4 months without
-  // food, far longer than adults (Klass & Hirsh 1976). After that they die.
-  const DAUER_SURVIVAL = 120 * 24;                    // ~4 months
+  // Dauer survival: dauers live off stored lipids and survive months without food,
+  // far longer than adults (Klass & Hirsh 1976; up to ~4 months). After that they die.
+  const DAUER_SURVIVAL = DAUER.survivalHoursMax;      // ~4 months (verified, LifeCycle.DAUER)
   const maxEggs  = (STRAINS[strainId] ?? STRAINS.N2).maxEggs;
   const adultRate = PlateTracker.CONSUMPTION_ML_PER_HR?.[plate.consumptionRate ?? 'standard'] ?? 0.0001;
   const canDauer = canFormDauer(strainId);
@@ -968,12 +972,13 @@ function buildLifeTimeline(plate) {
       cohorts.push(...born);
     }
 
-    // 4) Starvation: L1 (or just-hatched) freeze as dauer; others flagged to die
+    // 4) Starvation: larvae in the late-L1 → L2d decision window (or just-hatched)
+    //    freeze as dauer; everything past the window (or Daf-defective) dies.
     if (foodOut) {
       for (const c of cohorts) {
         if (c.dauer || c.dead) continue;
         const sid = stageIdAt(c.age);
-        if ((sid === 'l1' || c.age < eggDur) && canDauer) c.dauer = true;
+        if ((DAUER.decisionStages.includes(sid) || c.age < eggDur) && canDauer) c.dauer = true;
         else c.dead = true;
       }
     }
@@ -1070,9 +1075,9 @@ function simulateGenerations(plate, hrs) {
       // Fate is fixed at the MOMENT food ran out — dauers freeze (don't age on).
       const ageAtOut = Math.max(0, foodOutHrs - c.birth);
       const csOut = getCurrentStage(ageAtOut, strainId, tempC).stage;
-      const wasL1ish = csOut.id === 'l1' || ageAtOut < eggDur;   // L1 or egg→L1
-      if (wasL1ish && canFormDauer(strainId)) dauer += c.count;  // frozen dauer
-      else dead += c.count;                          // L2+/adults or daf mutants die
+      const inDauerWindow = DAUER.decisionStages.includes(csOut.id) || ageAtOut < eggDur; // L1/L2d or egg→L1
+      if (inDauerWindow && canFormDauer(strainId)) dauer += c.count;  // frozen dauer
+      else dead += c.count;                          // L3+/adults or Daf-defective die
       continue;
     }
     if (age < eggDur) continue;   // still an egg — shown as dots, not a worm
