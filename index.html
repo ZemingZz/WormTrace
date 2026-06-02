@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WormTrace — C. elegans Movement Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0e1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WormTrace">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/iphone.css">
+</head>
+<body>
+<div id="app" style="display:flex; flex-direction:column; height:100vh">
+
+  <!-- ── Header ── -->
+  <header>
+    <button id="btnToggleSessionBar" title="Session & export options"
+      style="background:#1e2a3a;border:1px solid var(--border);color:var(--accent);
+      border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer;
+      min-height:unset;padding:0;flex-shrink:0;margin-right:4px">⚙</button>
+    <div>
+      <h1>WormTrace</h1>
+      <div class="subtitle">C. elegans movement &amp; plate tracker</div>
+    </div>
+    <div class="spacer"></div>
+    <span id="statusBadge">No video loaded</span>
+    <button id="btnSessions" class="btn-secondary btn-sm" style="width:auto">📁 Sessions</button>
+    <button id="btnInstall" class="btn-secondary btn-sm" style="display:none; width:auto">⬇ Install</button>
+  </header>
+
+  <!-- ── Session bar (collapsed by default — toggled by ⚙ button) ── -->
+  <div id="sessionBar" class="collapsed">
+    <span class="sbar-label">Session:</span>
+    <input type="text" id="sessionNameInput" placeholder="Session name…" value="New Session">
+    <button class="btn-secondary btn-sm" id="btnSaveSession" style="width:auto">💾 Save</button>
+    <div class="sbar-sep"></div>
+    <span class="sbar-label">Tags:</span>
+    <div id="tagChips" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    <input type="text" id="tagInput" placeholder="Add tag…">
+    <button class="btn-secondary btn-sm" id="btnAddTag" style="width:auto">+ Tag</button>
+    <div class="sbar-sep"></div>
+    <button class="btn-secondary btn-sm" id="btnExportCSV"  style="width:auto" disabled>⬇ CSV</button>
+    <button class="btn-secondary btn-sm" id="btnExportJSON" style="width:auto" disabled>⬇ JSON</button>
+  </div>
+
+  <!-- ── Tab bar — Plate Tracker first ── -->
+  <div id="tabBar">
+    <button class="tab-btn active" data-tab="plateTab">🧫 Plate Tracker</button>
+    <button class="tab-btn"        data-tab="motionTab">🔬 Movement Tracker</button>
+  </div>
+
+  <!-- Tab content wrapper — takes remaining height, tabs swap inside -->
+  <div style="flex:1; min-height:0; overflow:hidden; position:relative">
+
+  <!-- ══════════════════ MOVEMENT TRACKER TAB ══════════════════ -->
+  <div id="motionTab" class="tab-view" style="position:absolute;inset:0;grid-template-columns:260px 1fr 280px; overflow:hidden">
+
+    <!-- Left panel -->
+    <div class="panel" id="leftPanel" data-mobile-panel="motion">
+      <div class="panel-title">Video &amp; Detection</div>
+
+      <div class="ctrl-group">
+        <button class="btn-primary" onclick="document.getElementById('videoInput').click()">📂 Upload Video</button>
+        <input type="file" id="videoInput" accept="video/*" style="display:none">
+        <div class="progress-bar" style="margin-top:4px">
+          <div class="progress-fill" id="bgProgress" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div id="infoMsg" style="font-size:11px;color:var(--accent);transition:opacity 0.5s;opacity:0;min-height:28px;line-height:1.4"></div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Background threshold</div>
+        <input type="range" id="thresholdSlider" min="5" max="80" value="28">
+        <div class="row"><label>Value</label><span id="thresholdVal">28</span></div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Blob size (px²)</div>
+        <div class="row"><label>Min</label><input type="number" id="minAreaInput" value="30" min="5" max="500"></div>
+        <div class="row"><label>Max</label><input type="number" id="maxAreaInput" value="4000" min="100" max="50000"></div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Pattern similarity (DTW)</div>
+        <input type="range" id="similaritySlider" min="20" max="90" value="55">
+        <div class="row"><label>Threshold</label><span id="similarityVal">0.55</span></div>
+      </div>
+
+      <div style="display:flex;gap:6px">
+        <button class="btn-secondary" id="btnReprocess" disabled style="flex:1">⟳ Reprocess</button>
+        <button class="btn-secondary" id="btnAutoOptimize" disabled style="flex:1;font-size:11px">🤖 Auto-tune</button>
+      </div>
+
+      <div class="panel-title" style="margin-top:4px">Stats</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-val" id="statWorms">0</div><div class="stat-lbl">Worms</div></div>
+        <div class="stat-box"><div class="stat-val" id="statFrames">0</div><div class="stat-lbl">Frames</div></div>
+        <div class="stat-box"><div class="stat-val" id="statPatterns">0</div><div class="stat-lbl">Patterns</div></div>
+        <div class="stat-box"><div class="stat-val" id="statMatches">0</div><div class="stat-lbl">Matches</div></div>
+      </div>
+
+      <div class="panel-title" style="margin-top:4px">Detected Worms</div>
+      <div id="wormList"><div class="section-empty">Load a video to begin</div></div>
+    </div>
+
+    <!-- Canvas area -->
+    <div id="canvasWrap">
+      <video id="videoEl" muted playsinline preload="auto" crossorigin="anonymous"></video>
+      <canvas id="mainCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+      <canvas id="selectionOverlay"></canvas>
+
+      <div id="dropZone">
+        <div class="icon">🔬</div>
+        <p>Drop a C. elegans video here</p>
+        <p class="hint">or use the Upload button · MP4, MOV, AVI supported</p>
+      </div>
+
+      <div id="captureHint" class="hidden">Select a worm first</div>
+
+      <div id="vcBar" class="hidden">
+        <input type="range" id="seekBar" min="0" max="100" step="0.1" value="0">
+        <div id="vcButtons">
+          <button id="btnPlay" disabled>▶ Play</button>
+          <button id="btnStop">■ Stop</button>
+          <span id="timeDisplay" style="font-family:monospace;font-size:11px;color:rgba(255,255,255,.7);margin-left:auto">0:00.0 / 0:00.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="panel" id="rightPanel">
+      <div class="panel-title">Pattern Capture</div>
+
+      <div class="ctrl-group" style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:10px;gap:8px;display:flex;flex-direction:column">
+        <div style="font-size:11px;color:var(--muted);line-height:1.5">
+          1. Click a worm on the video<br>
+          2. Scrub to where the pattern starts<br>
+          3. Click <strong>Capture Pattern</strong><br>
+          4. Mark start &amp; end → Save
+        </div>
+        <button class="btn-primary" id="btnCapture" disabled>◉ Capture Pattern</button>
+        <div class="row">
+          <button class="btn-secondary btn-sm" id="btnMarkStart" disabled style="flex:1">⬤ Mark Start</button>
+          <button class="btn-secondary btn-sm" id="btnMarkEnd"   disabled style="flex:1">⬤ Mark End</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap">
+          <span>Start: <span class="range-marker start" id="startMark">—</span></span>
+          <span>End: <span class="range-marker end"   id="endMark">—</span></span>
+        </div>
+        <button class="btn-secondary" id="btnSavePattern" disabled>💾 Save Pattern…</button>
+      </div>
+
+      <div class="panel-title" style="margin-top:4px">Saved Patterns</div>
+      <div id="patternList">
+        <div class="section-empty">No patterns defined yet.<br>Select a worm and click "Capture Pattern".</div>
+      </div>
+
+      <!-- Troubleshooter -->
+      <div class="panel-title" style="margin-top:8px">🤖 Troubleshooter</div>
+      <div id="tsPanel">
+        <div class="section-empty">Run tracking to see quality analysis.</div>
+      </div>
+      <button class="btn-secondary" id="btnRunTS" disabled style="margin-top:4px">Analyze Tracking Quality</button>
+      <button class="btn-secondary" id="btnAutoFix" disabled style="margin-top:4px;font-size:11px">⚡ Apply Top Fix</button>
+    </div>
+  </div><!-- /motionTab -->
+
+  <!-- ══════════════════ PLATE TRACKER TAB ══════════════════ -->
+  <div id="plateTab" class="tab-view active" style="position:absolute;inset:0;grid-template-columns:240px 1fr 300px; overflow:hidden">
+
+    <!-- Plate list panel -->
+    <div class="panel" id="platePanelList" style="position:relative">
+      <div class="panel-title">Plates</div>
+      <button class="btn-primary" id="btnAddPlate">+ Add Plate</button>
+
+      <!-- Multi-select action bar -->
+      <div id="multiSelectBar" class="hidden multi-select-bar">
+        <span id="multiSelectCount" style="font-size:11px;font-weight:600;flex:1">0 selected</span>
+        <button class="btn-secondary btn-sm" id="btnSelectAll"    style="width:auto">All</button>
+        <button class="btn-secondary btn-sm" id="btnDeselectAll"  style="width:auto">Clear</button>
+        <button class="btn-primary   btn-sm" id="btnExportSelected" style="width:auto">📊 Export</button>
+      </div>
+
+      <div id="plateList" style="margin-bottom:8px"></div>
+
+      <!-- View Plate + Compare buttons -->
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="btn-secondary" id="btnViewPlate" style="flex:1;font-size:12px">🔬 View Plate →</button>
+        <button class="btn-secondary" id="btnComparePlates" style="flex:1;font-size:12px">📊 Compare</button>
+      </div>
+
+      <!-- Biohazard bin button -->
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+        <button id="btnOpenBin" class="biohazard-bin-btn">
+          <div class="bin-icon">
+            <div class="bin-lid">
+              <div class="bin-handle"></div>
+            </div>
+            <div class="bin-body">☣</div>
+            <div class="bin-base"></div>
+          </div>
+          <div class="bin-label">
+            <div class="bin-label-title">Biohazard Bin</div>
+            <div class="bin-label-sub" id="binSubtext">Empty</div>
+          </div>
+          <span id="binBadge" class="bin-count-badge"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Centre: canvas visualisation + plate detail form -->
+    <div id="platePanelDetail" style="overflow:hidden;display:flex;flex-direction:column;background:#0a0e1a">
+
+      <!-- ══ Mobile back bar ══ -->
+      <div id="plateBackBar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:#070b14;border-bottom:1px solid var(--border);flex-shrink:0">
+        <button id="btnPlateBack" style="background:none;border:none;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;width:auto;min-height:unset;padding:4px 0;display:flex;align-items:center;gap:6px">
+          ← Plates
+        </button>
+        <span id="plateBackTitle" style="font-size:13px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button id="btnPlateStatus" style="background:#0d2a22;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;width:auto;min-height:unset;white-space:nowrap">
+          📊 Status
+        </button>
+      </div>
+
+      <!-- ══ Plate canvas visualisation ══ -->
+      <div id="plateCanvasWrap">
+        <canvas id="plateCanvas"></canvas>
+
+        <div id="canvasOverlay">
+          <!-- Food bar on canvas -->
+          <div class="canvas-food-bar-wrap">
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);margin-bottom:2px">🍽 Food</div>
+            <div class="canvas-food-bar-track">
+              <div id="foodRemainingBar" style="width:100%;background:#5a9e32;height:100%;border-radius:3px;transition:width 1s,background 1s"></div>
+            </div>
+            <div id="foodRemainingDisplay" style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px">0.5 ml (full)</div>
+            <div id="foodETA" style="font-size:10px;color:var(--muted)"></div>
+          </div>
+          <!-- Worm count badge -->
+          <div id="wormCountBadge" class="canvas-worm-badge">🐛 <span id="wormCountBadgeVal">1</span></div>
+        </div>
+      </div>
+
+      <!-- ══ Empty state (no plate selected) ══ -->
+      <div id="plateDetailEmpty" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;padding:12px;flex-shrink:0">
+        Select or create a plate to configure it
+      </div>
+
+      <!-- ══ Canvas collapse/expand toggle arrow ══ -->
+      <button id="canvasToggleArrow" class="hidden" title="Collapse / expand plate view">
+        <span id="canvasToggleIcon">▲</span>
+        <span id="canvasToggleLabel">Hide plate view</span>
+      </button>
+
+      <!-- ══ Plate form (scrollable) ══ -->
+      <div id="plateDetail" class="hidden" style="flex:1;overflow-y:auto">
+        <div class="plate-detail-inner">
+
+          <!-- ── Strain selector ── -->
+          <div class="ctrl-group">
+            <div class="ctrl-label">Strain</div>
+            <select id="plateStrainSelect">
+              <option value="N2">N2 (Bristol) — wild-type</option>
+              <option value="dpy-13">dpy-13 (e184) — Dumpy</option>
+              <option value="daf-2">daf-2 (e1370) — Insulin receptor</option>
+              <option value="daf-16">daf-16 (mu86) — FOXO</option>
+              <option value="eat-2">eat-2 (ad465) — Dietary restriction</option>
+              <option value="age-1">age-1 (hx546) — PI3 Kinase</option>
+              <option value="custom">✏ Custom strain</option>
+            </select>
+            <div id="customStrainWrap" class="hidden" style="margin-top:4px">
+              <input type="text" id="customStrainName" placeholder="Enter strain name…">
+            </div>
+          </div>
+
+          <!-- ── Temperature ── -->
+          <div class="ctrl-group">
+            <div class="ctrl-label">Incubation Temperature</div>
+            <select id="plateTempSelect">
+              <option value="10">10°C — very slow (3.3× N2)</option>
+              <option value="15">15°C — slow (1.6× N2)</option>
+              <option value="20" selected>20°C — standard</option>
+              <option value="25">25°C — fast (0.55× N2)</option>
+            </select>
+          </div>
+
+          <!-- ── Worm count ── -->
+          <div class="ctrl-group">
+            <div class="ctrl-label">Number of worms on plate</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <button class="btn-secondary" id="btnWormMinus" style="width:34px;padding:5px;flex-shrink:0">−</button>
+              <input type="number" id="wormCountInput" value="1" min="1" max="9999" style="flex:1;text-align:center">
+              <button class="btn-secondary" id="btnWormPlus"  style="width:34px;padding:5px;flex-shrink:0">+</button>
+            </div>
+          </div>
+
+          <!-- ── Food (OP50) ── -->
+          <div class="ctrl-group">
+            <div class="ctrl-label">OP50 food (bacterial lawn)</div>
+            <input type="range" id="foodVolumeSlider" min="0.05" max="0.35" step="0.05" value="0.2">
+            <div class="row"><label>Volume</label><span id="foodVolumeVal">0.20 ml</span></div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">
+              Median ≈ 0.20 ml = standard 60 mm NGM plate seeded with OP50
+            </div>
+            <!-- Consumption rate — auto-fixed to strain, read-only display -->
+            <select id="consumptionSelect" style="display:none">
+              <option value="low">Low</option>
+              <option value="standard" selected>Standard</option>
+              <option value="high">High</option>
+            </select>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">
+              Consumption: <span id="consumptionDisplay" style="color:var(--accent);font-weight:600">auto (standard)</span>
+            </div>
+          </div>
+
+          <!-- ── Worm cohorts (after inoculation) ── -->
+          <div id="cohortSection" class="hidden">
+            <div class="panel-title">🐛 Worm Groups on Plate</div>
+            <div id="cohortList"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn-secondary btn-sm" id="btnAddWorms" style="flex:1">➕ Add Worms (any stage)</button>
+              <button class="btn-secondary btn-sm" id="btnTransferWorms" style="flex:1">🔀 Transfer Worms</button>
+            </div>
+          </div>
+
+          <!-- ── Stage selector (hidden after inoculation) ── -->
+          <div id="stageSelectWrap" class="ctrl-group">
+            <div class="ctrl-label">Worms currently at stage</div>
+            <select id="startingStageSelect">
+              <option value="egg">🥚 Egg / Embryo (start: 0h)</option>
+            </select>
+          </div>
+
+          <!-- ── SINGLE TOGGLE BUTTON + restart ── -->
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <button id="btnMainAction" class="btn-main-action inoculate-mode">
+              🧫 Inoculate Plate — Start Timer
+            </button>
+            <button id="btnRestartTimer" class="btn-restart-timer hidden" title="Restart inoculation timer">↺</button>
+          </div>
+
+          <!-- ── Timer display (shown after inoculation) ── -->
+          <div id="timerSection" class="hidden">
+            <div class="timer-display-box">
+              <div class="timer-label">Elapsed since inoculation</div>
+              <div id="timerDisplay" class="timer-clock">0m 0s</div>
+              <div id="timerStageLabel" style="font-size:12px;font-weight:600;margin:2px 0"></div>
+              <div class="progress-bar" style="margin:6px 0">
+                <div class="progress-fill" id="timerProgressFill" style="width:0%;background:var(--accent)"></div>
+              </div>
+              <div id="timerPct" style="font-size:10px;color:var(--muted);text-align:right">0% of cycle</div>
+            </div>
+          </div>
+
+          <!-- ── Timeline ── -->
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="panel-title" style="flex:1;border:none;margin:0">Development Timeline</div>
+            <button id="btnStagesInfo" title="Explain all life stages"
+              style="background:#0d2a22;border:1px solid var(--accent);color:var(--accent);
+              border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:800;cursor:pointer;
+              min-height:unset;padding:0;flex-shrink:0">?</button>
+          </div>
+          <div id="plateTimeline">
+            <div class="section-empty" style="padding:8px">Inoculate to start timer.</div>
+          </div>
+
+          <!-- ── Stage card ── -->
+          <div id="curStageCard"></div>
+
+          <!-- ── Egg counter ── -->
+          <div id="eggSection" class="hidden">
+            <div class="panel-title">🥚 Egg Count Tracker</div>
+            <div class="egg-tracker-box">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <div>
+                  <div class="egg-total" id="eggTotalDisplay">0</div>
+                  <div style="font-size:10px;color:var(--muted)" id="eggMaxDisplay">/ ~300 expected</div>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Eggs laid</div>
+                  <div class="progress-bar"><div class="progress-fill" id="eggProgressFill" style="width:0%;background:#fbbf24"></div></div>
+                  <div style="font-size:10px;color:var(--muted);margin-top:2px">Avg rate: <span id="eggRateDisplay">—</span></div>
+                </div>
+              </div>
+              <!-- Time till next egg -->
+              <div id="nextEggWrap" style="margin-bottom:8px">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">
+                  <span>⏳ Time till next egg</span>
+                  <span id="nextEggCountdown">—</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="nextEggFill" style="width:0%;background:#34d399;transition:width 0.5s linear"></div></div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <button class="btn-secondary" id="btnEggMinus" style="width:36px;padding:6px">−</button>
+                <button class="btn-primary"   id="btnEggPlus"  style="width:auto;padding:6px 18px;font-size:16px">+ Egg</button>
+                <input type="number" id="eggManualInput" placeholder="count" min="0" style="width:70px">
+                <button class="btn-secondary btn-sm" id="btnEggLog" style="width:auto">Log</button>
+              </div>
+              <div id="eggHistory"></div>
+            </div>
+          </div>
+
+          <!-- ── Notes ── -->
+          <div class="ctrl-label">Lab Notes</div>
+          <textarea id="plateNotesInput" placeholder="Notes about this plate…"></textarea>
+
+          <!-- ── Observations & Photos ── -->
+          <div class="panel-title">Observations &amp; Photos</div>
+          <div class="obs-input-group">
+            <textarea id="obsNoteInput" placeholder="What do you see? (e.g. L4 crescent visible, worms active…)" style="min-height:50px"></textarea>
+            <div class="row">
+              <label class="ctrl-label" style="flex:none">Confirm stage:</label>
+              <select id="obsStageSelect" style="flex:1">
+                <option value="">— auto from time —</option>
+                <option value="egg">Egg / Embryo</option>
+                <option value="l1">L1 Larva</option>
+                <option value="l2">L2 Larva</option>
+                <option value="l3">L3 Larva</option>
+                <option value="l4">L4 Larva</option>
+                <option value="young_adult">Young Adult</option>
+                <option value="adult">Reproductive Adult</option>
+                <option value="dauer">Dauer Larva</option>
+              </select>
+            </div>
+            <button class="btn-secondary btn-sm" onclick="document.getElementById('obsImageInput').click()" style="width:auto">📷 Attach Photo</button>
+            <input type="file" id="obsImageInput" accept="image/*" style="display:none">
+            <img id="obsImagePreview" class="hidden" alt="preview">
+            <button class="btn-primary" id="btnAddObservation">+ Log Observation</button>
+          </div>
+          <div id="obsList"></div>
+
+          <!-- ── Save as Excel ── -->
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+            <button class="btn-secondary" id="btnSavePlateExcel" style="background:#0d2a1a;border-color:#166534;color:#4ade80">
+              📊 Save Plate Data as Excel (.xls)
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel: real data + ML + strain info + LC reference -->
+    <div class="panel" id="platePanelRight">
+
+      <!-- ── Real-world data upload ── -->
+      <div class="panel-title">📡 Real-World Data</div>
+      <div id="realDataSection">
+        <div class="section-empty">Select a plate to manage real-world data.</div>
+      </div>
+      <!-- Hidden file inputs -->
+      <input type="file" id="realDataInput" accept=".csv,.json" style="display:none">
+      <button class="btn-secondary btn-sm" id="btnDownloadTemplate" style="width:auto;margin-top:4px;font-size:10px">⬇ Download CSV template</button>
+
+      <!-- ── ML Panel ── -->
+      <div class="panel-title" style="margin-top:10px">🤖 Machine Learning</div>
+      <div id="mlFlash" style="font-size:11px;color:var(--accent);min-height:18px;transition:opacity 0.5s;opacity:0"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+        Upload real data to plates, then train a local correction model. Export your data to contribute to a shared model.
+      </div>
+
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+        <button class="btn-primary   btn-sm" id="btnTrainML"          style="width:auto">⚡ Train</button>
+        <button class="btn-secondary btn-sm" id="btnResetML"          style="width:auto">↺ Reset</button>
+        <button class="btn-secondary btn-sm" id="btnExportDataset"    style="width:auto">⬇ Dataset</button>
+        <button class="btn-secondary btn-sm" id="btnExportContribution" style="width:auto">🌐 Contribute</button>
+        <button class="btn-secondary btn-sm" id="btnImportCommunity"  style="width:auto">⬆ Import</button>
+      </div>
+      <input type="file" id="communityModelInput" accept=".json" style="display:none">
+
+      <div id="mlTrainResult" style="font-size:11px;min-height:16px;margin-bottom:4px"></div>
+      <div class="panel-title" style="font-size:10px;margin-bottom:4px">Learned corrections</div>
+      <div id="mlStatusPanel">
+        <div style="font-size:11px;color:var(--muted)">No corrections learned yet.</div>
+      </div>
+
+      <!-- ── Strain Info ── -->
+      <div class="panel-title" style="margin-top:10px">Strain Info</div>
+      <div id="strainInfoPanel">
+        <div class="section-empty">Select a plate to see strain details.</div>
+      </div>
+
+      <!-- ── Life Cycle Reference (collapsible) ── -->
+      <button class="collapsible-hdr" id="lcRefToggle" aria-expanded="false">
+        <span>📖 Life Cycle Reference</span>
+        <span class="coll-arrow">▼</span>
+      </button>
+      <div class="collapsible-body" id="lcRefBody">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;margin-top:8px">
+          <button class="btn-secondary btn-sm lc-temp-btn active" data-t="10" style="width:auto">10°C</button>
+          <button class="btn-secondary btn-sm lc-temp-btn"        data-t="15" style="width:auto">15°C</button>
+          <button class="btn-secondary btn-sm lc-temp-btn"        data-t="20" style="width:auto">20°C</button>
+          <button class="btn-secondary btn-sm lc-temp-btn"        data-t="25" style="width:auto">25°C</button>
+          <select id="lcStrainSelect" style="flex:1;min-width:70px;font-size:11px;padding:3px 5px">
+            <option value="N2">N2</option>
+            <option value="dpy-13">dpy-13</option>
+            <option value="daf-2">daf-2</option>
+            <option value="daf-16">daf-16</option>
+            <option value="eat-2">eat-2</option>
+            <option value="age-1">age-1</option>
+          </select>
+        </div>
+        <div id="lcReference"></div>
+      </div>
+
+      <!-- ── Growth Troubleshooter (collapsible) ── -->
+      <button class="collapsible-hdr" id="tsRefToggle" aria-expanded="false">
+        <span>🔍 Growth Troubleshooter</span>
+        <span class="coll-arrow">▼</span>
+      </button>
+      <div class="collapsible-body" id="tsRefBody">
+        <div style="margin-top:8px">
+          <div id="growthTsPanel">
+            <div class="section-empty">Select a plate to analyze growth deviation.</div>
+          </div>
+          <button class="btn-secondary btn-sm" id="btnAnalyzeGrowth" style="margin-top:6px" disabled>Analyze Growth</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- /plateTab -->
+
+  </div><!-- /tab content wrapper -->
+
+</div><!-- /#app -->
+
+<!-- ══ Mobile navigation ══ -->
+<!-- Top tab bar (shown on mobile as primary navigation) -->
+<div id="mobileTopTabs" style="display:none">
+  <button class="mobile-tab-btn mobile-nav-active" data-tab="plateTab">
+    <span class="mnav-icon">🧫</span><span class="mnav-label">Plates</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="motionTab">
+    <span class="mnav-icon">🎥</span><span class="mnav-label">Movement</span>
+  </button>
+</div>
+
+<!-- Bottom nav: single row panel switcher -->
+<nav id="mobileNav" style="display:none">
+  <div id="mobilePanelNav">
+    <!-- Motion panels -->
+    <div id="motionMobileNav" class="mobile-nav-group">
+      <button class="mobile-nav-btn" data-mpanel="leftPanel">
+        <span class="mnav-icon">⚙️</span><span class="mnav-label">Controls</span>
+      </button>
+      <button class="mobile-nav-btn mobile-nav-active" data-mpanel="canvasWrap">
+        <span class="mnav-icon">🎬</span><span class="mnav-label">Video</span>
+      </button>
+      <button class="mobile-nav-btn" data-mpanel="rightPanel">
+        <span class="mnav-icon">🧬</span><span class="mnav-label">Patterns</span>
+      </button>
+    </div>
+    <!-- Plate panels (2 items — no duplicate icons) -->
+    <div id="plateMobileNav" class="mobile-nav-group" style="display:none">
+      <button class="mobile-nav-btn mobile-nav-active" data-ppanel="platePanelList">
+        <span class="mnav-icon">📋</span><span class="mnav-label">Plates</span>
+      </button>
+      <button class="mobile-nav-btn" data-ppanel="platePanelRight">
+        <span class="mnav-icon">🤖</span><span class="mnav-label">Data &amp; ML</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Biohazard bin drawer ── -->
+<div id="binDrawer">
+  <div style="display:flex;align-items:center;gap:8px">
+    <div style="font-size:13px;font-weight:700;color:#f87171;flex:1">☣ Biohazard Bin</div>
+    <button id="btnEmptyBin" class="btn-danger btn-sm" style="width:auto">Empty Bin</button>
+    <button id="btnCloseBin" class="btn-secondary btn-sm" style="width:auto">✕</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);line-height:1.4">
+    Discarded plates are stored here. Data is fully preserved.<br>Restore or permanently delete from below.
+  </div>
+  <div id="binList" style="overflow-y:auto;flex:1">
+    <div class="section-empty">Biohazard Bin is empty.</div>
+  </div>
+</div>
+
+<!-- ── Pattern name modal ── -->
+<div id="modal" class="hidden">
+  <div class="modal-box">
+    <h2>Name this movement pattern</h2>
+    <p style="font-size:12px;color:var(--muted)">Give this behavior a name (e.g. "omega turn", "forward crawl", "reversal").</p>
+    <input type="text" id="patternNameInput" placeholder="Pattern name…" maxlength="32">
+    <div class="modal-actions">
+      <button class="btn-secondary" id="btnModalCancel">Cancel</button>
+      <button class="btn-primary"   id="btnModalSave">Save Pattern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Session drawer ── -->
+<div id="sessionDrawer">
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="panel-title" style="flex:1">Saved Sessions</div>
+    <button id="btnCloseDrawer" class="btn-secondary btn-sm" style="width:auto">✕</button>
+  </div>
+  <div id="sessionList" style="overflow-y:auto;flex:1">
+    <div class="section-empty">No sessions saved yet.</div>
+  </div>
+  <!-- Developer credit -->
+  <div style="border-top:1px solid var(--border);padding-top:10px;font-size:10px;color:var(--muted);line-height:1.6;text-align:center">
+    <div style="color:var(--accent);font-weight:700;margin-bottom:3px">WormTrace v1.0</div>
+    Developed by<br>
+    Dr. Kailiang Jia, Zeming Zhang,<br>Victoria Daroch &amp; Christian Fior<br>
+    <span style="color:#475569">Built using Claude</span>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  ['leftPanel','canvasWrap','rightPanel','platePanelList','platePanelDetail','platePanelRight'].forEach(function(id){
+    var el=document.getElementById(id);if(!el)return;
+    el.setAttribute('style',(el.getAttribute('style')||'').replace(/display\s*:\s*[^;]+;?/gi,'')+';display:none');
+  });
+  var pl=document.getElementById('platePanelList');if(pl)pl.style.display='flex';
+  var tb=document.getElementById('tabBar');if(tb)tb.style.display='flex';
+  ['tagChips','tagInput','btnAddTag'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+  document.querySelectorAll('.sbar-sep').forEach(function(e){e.style.display='none';});
+  var mt=document.getElementById('motionTab');if(mt){mt.style.display='none';mt.style.flexDirection='column';mt.style.gridTemplateColumns='none';}
+  var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
+});
+</script>
+<script type="module" src="js/app.js?v=36"></script>
+<script type="module" src="js/plateApp.js?v=36"></script>
+<script type="module">
+  import { initMobile } from './js/mobile.js?v=36';
+  initMobile();
+</script>
+</body>
+</html>
