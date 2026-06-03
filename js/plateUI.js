@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=68';
-import { PlateCanvas }       from './PlateCanvas.js?v=68';
-import { showToast, showConfirm } from './Toast.js?v=68';
-import { showFeedback }      from './Feedback.js?v=68';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=69';
+import { PlateCanvas }       from './PlateCanvas.js?v=69';
+import { showToast, showConfirm } from './Toast.js?v=69';
+import { showFeedback }      from './Feedback.js?v=69';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=68';
+} from './LifeCycle.js?v=69';
 
 export const pt = new PlateTracker();
 
@@ -467,7 +467,7 @@ function computePopulation(plate, hrs) {
   const targetFeed = initFood / (wormCount * adultRate);   // adult-equiv feed-hours available
   let foodOutHrs = Infinity;
   if (isFinite(targetFeed)) {
-    for (let h = 0; h <= 80 * 24; h += 2) {
+    for (let h = 0; h <= 40 * 24; h += 2) {
       if (cumulativeFeedHours(strainId, tempC, h) >= targetFeed) { foodOutHrs = h; break; }
     }
   }
@@ -957,7 +957,7 @@ function buildLifeTimeline(plate) {
   const canDauer = canFormDauer(strainId);
   const colorOf  = id => (stages.find(s => s.id === id)?.color ?? '#00d4aa');
 
-  const DT = 6, MAX_H = 80 * 24, POP_CAP = 5e6;
+  const DT = 6, MAX_H = 40 * 24, POP_CAP = 5e6;
   let food = plate.initialFood ?? 0.2;
 
   // Seed from ALL real cohorts (founding + user-added), each appearing at its
@@ -1214,9 +1214,9 @@ function _initGrowthSimulator(plate, startHrs) {
   const stages    = getStages(plate.strainId, plate.tempC);
   const totalHrs  = stages[stages.length - 1].end;
   const adultStage = stages.find(s => s.id === 'adult') ?? stages[stages.length - 1];
-  // Cap the simulation at 80 days. You can watch eggs hatch, generations grow,
+  // Cap the simulation at 30 days. You can watch eggs hatch, generations grow,
   // and adults die of age (long-lived strains persist much longer).
-  const maxHrs    = 80 * 24;
+  const maxHrs    = 30 * 24;
   const maxEggs   = (STRAINS[plate.strainId] ?? STRAINS.N2).maxEggs;
   const initFood  = plate.initialFood ?? 0.5;
   const rate      = PlateTracker.CONSUMPTION_ML_PER_HR?.[plate.consumptionRate ?? 'standard'] ?? 0.0001;
@@ -1564,7 +1564,7 @@ function openBinSimulator(binId) {
     start: pt.elapsedSinceInoculation(p.id) ?? 0,   // dev-hours since inoculation (0 = not started)
     inoc: !!p.inoculatedAt,
   }));
-  const MAX_T = 80 * 24;   // scrub up to 80 days into the future
+  const MAX_T = 30 * 24;   // scrub up to 30 days into the future
 
   const stages = getStages('N2', 20);
   const nameOf  = id => (stages.find(s => s.id === id)?.name ?? id);
@@ -1664,7 +1664,7 @@ function openBinSimulator(binId) {
       </div>
 
       <div style="margin-bottom:6px">
-        ${sec('Survival curve — % alive over time (per plate)')}
+        ${sec('Survival & dauer — % over time (solid = alive, dashed = dauer)')}
         <div id="binSimSurvival" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
     </div>`;
@@ -1688,17 +1688,24 @@ function openBinSimulator(binId) {
     const living = snap.alive + snap.dauer, tot = living + snap.dead;
     return tot > 0 ? (living / tot) * 100 : 100;
   };
+  const dauerAt = (s, t) => {   // % of living worms that are in dauer
+    if (!s.inoc) return 0;
+    const snap = timelineAt(s.snaps, s.start + t);
+    if (!snap) return 0;
+    const living = snap.alive + snap.dauer;
+    return living > 0 ? (snap.dauer / living) * 100 : 0;
+  };
   function buildSurvivalChart() {
     const A = '#111';
     let g = `<rect x="0" y="0" width="${SV.W}" height="${SV.H}" fill="#ffffff"/>`;
-    // Y ticks + labels (Percent survival)
+    // Y ticks + labels
     for (const pct of [0, 25, 50, 75, 100]) {
       const yy = survY(pct);
       g += `<line x1="${SV.x0 - 4}" y1="${yy}" x2="${SV.x0}" y2="${yy}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
     }
     // X ticks + labels (days)
-    for (let d = 0; d * 24 <= MAX_T; d += 20) {
+    for (let d = 0; d * 24 <= MAX_T; d += 10) {
       const xx = survX(d * 24);
       g += `<line x1="${xx}" y1="${SV.y1}" x2="${xx}" y2="${SV.y1 + 4}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${xx}" y="${SV.y1 + 15}" font-size="9" fill="${A}" text-anchor="middle">${d}</text>`;
@@ -1707,25 +1714,36 @@ function openBinSimulator(binId) {
     g += `<line x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
       `<line x1="${SV.x0}" y1="${SV.y1}" x2="${SV.x1}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
       `<text x="${(SV.x0 + SV.x1) / 2}" y="${SV.y1 + 32}" font-size="11" fill="${A}" text-anchor="middle">Survival time (days)</text>` +
-      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">Percent survival</text>`;
-    // Stepped survival lines + right-side legend
-    let lines = '', legend = '';
+      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">Percent</text>`;
+    // Stepped path for any value-function over the timeline
+    const stepPath = fn => {
+      let p = '', prev = null;
+      for (let t = 0; t <= MAX_T; t += 12) {
+        const X = survX(t), Y = survY(fn(t));
+        p += (prev === null ? '' : `${X.toFixed(1)},${prev.toFixed(1)} `) + `${X.toFixed(1)},${Y.toFixed(1)} `;
+        prev = Y;
+      }
+      return p.trim();
+    };
+    // Line-style key: solid = % alive, dashed = % dauer
+    let legend =
+      `<line x1="${SV.x1 + 14}" y1="${SV.y0 + 6}" x2="${SV.x1 + 32}" y2="${SV.y0 + 6}" stroke="${A}" stroke-width="2"/>` +
+      `<text x="${SV.x1 + 37}" y="${SV.y0 + 9}" font-size="9" fill="${A}">% alive</text>` +
+      `<line x1="${SV.x1 + 14}" y1="${SV.y0 + 20}" x2="${SV.x1 + 32}" y2="${SV.y0 + 20}" stroke="${A}" stroke-width="2" stroke-dasharray="4 2"/>` +
+      `<text x="${SV.x1 + 37}" y="${SV.y0 + 23}" font-size="9" fill="${A}">% dauer</text>`;
+    // Per plate: solid survival line + dashed dauer line (same colour)
+    let lines = '';
     sims.forEach((s, i) => {
       const col = SURV_PALETTE[i % SURV_PALETTE.length];
-      let pts = '', prevY = null;
-      for (let t = 0; t <= MAX_T; t += 12) {
-        const X = survX(t), Y = survY(survAt(s, t));
-        pts += (prevY === null ? '' : `${X.toFixed(1)},${prevY.toFixed(1)} `) + `${X.toFixed(1)},${Y.toFixed(1)} `;
-        prevY = Y;
-      }
-      lines += `<polyline points="${pts.trim()}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
-      const ly = SV.y0 + 8 + i * 16;
+      lines += `<polyline points="${stepPath(t => survAt(s, t))}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
+      lines += `<polyline points="${stepPath(t => dauerAt(s, t))}" fill="none" stroke="${col}" stroke-width="1.4" stroke-dasharray="4 2" opacity="0.85"/>`;
+      const ly = SV.y0 + 42 + i * 15;
       legend += `<line x1="${SV.x1 + 14}" y1="${ly}" x2="${SV.x1 + 32}" y2="${ly}" stroke="${col}" stroke-width="2.6"/>` +
         `<text x="${SV.x1 + 37}" y="${ly + 3}" font-size="9" fill="${A}">${escHtml(s.plate.name).slice(0, 18)}</text>`;
     });
     const marker = `<line id="binSimSurvMarker" x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="#888" stroke-width="1" stroke-dasharray="3 2"/>`;
     $('binSimSurvival').innerHTML =
-      `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block;border-radius:6px">${g}${lines}${marker}</svg>`;
+      `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block;border-radius:6px">${g}${lines}${legend}${marker}</svg>`;
   }
 
   function renderAt(T) {
