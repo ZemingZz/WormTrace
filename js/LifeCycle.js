@@ -106,7 +106,7 @@ export const STRAINS = {
     dauerTemps: [],         // no constitutive dauer at selectable temps (10/20/25 °C)
     dauerTempPartial: [27], // a small fraction enter dauer at 27 °C (not selectable here)
     maxEggs: 300,
-    lifespan20C: '~20 days',
+    lifespan20C: '~23 days (mean 23.2 ± 3.9, max ~34)',
     notes: 'Standard wild-type reference. All baseline timings.',
     phenotype: 'Normal morphology, behavior, and lifespan.',
     dauerNotes: 'Facultative: does NOT enter dauer at ≤25 °C while food is present. ' +
@@ -144,7 +144,7 @@ export const STRAINS = {
     dauerTemps: [25],       // ts Daf-c: ~100% dauer at 25 °C
     dauerTempPartial: [20], // reduced, allele/assay-dependent penetrance at 20 °C
     maxEggs: 200,           // reduced progeny
-    lifespan20C: '~40–50 days (~2× N2)',
+    lifespan20C: '~26 days (e1368: 26.3 ± 1.0; e1370 allele ~2× N2)',
     notes: 'Insulin/IGF-1 receptor (ortholog of human INSR). Extended lifespan. Dauer-constitutive.',
     phenotype: 'Normal morphology. ~2× lifespan. ~1.5× slower development (L2 most extended). ~100% dauer at 25 °C.',
     dauerNotes: 'Temperature-sensitive Daf-c: ~100% dauer at 25 °C; reduced at 20 °C ' +
@@ -206,7 +206,7 @@ export const STRAINS = {
     dafClass: 'daf-d',
     dauerTemps: [],         // Dauer-defective — cannot form dauer
     maxEggs: 300,
-    lifespan20C: '~14–16 days (slightly reduced vs N2)',
+    lifespan20C: '~15 days (mu86: 15.3 ± 2.5, max ~25)',
     notes: 'FOXO transcription factor, the key effector downstream of daf-2/PI3K. ' +
       'Required for dauer; epistatic to daf-2/age-1.',
     phenotype: 'Normal morphology. Slightly shortened lifespan. Cannot enter dauer.',
@@ -313,14 +313,14 @@ export const STRAINS = {
  * simulation so long-lived strains (daf-2, age-1, eat-2) persist realistically.
  * Sources: Kenyon 1993; Lakowski & Hekimi 1998; Hahm 2018 (see DAUER_RESEARCH.md).
  */
-// Normalized to N2≈20 d using each study's within-experiment fold-change. Sources:
-// Lakowski&Hekimi 1998 (PMC23719, N2/eat-2), Huang 2004 (PMC419561, daf-2 ~1.55–1.7×
-// @20°C), Shaw 2007 (PMC3124252, daf-7/-1/-3/-5, FUdR), Friedman&Johnson 1988
-// (PMC1203268, age-1 ~+40% @20°C). NOTE: dpy-13 has NO published lifespan data
-// (assumed ≈N2); daf-16(mu86) single-mutant 20°C mean is sparse (assumed ≈N2).
+// N2, daf-2, daf-16 from a single large-n survival dataset supplied by the lab
+// (mean ± SD days @20°C): N2 23.2 ± 3.9 (n=1187), daf-2(e1368) 26.3 ± 1.0 (n=808),
+// daf-16(mu86) 15.3 ± 2.5 (n=1449). NOTE: that daf-2 allele (e1368) is only ~1.13×
+// here — much weaker than the canonical daf-2(e1370) ~2×. dpy-13/daf-3 assumed ≈N2;
+// daf-7/-1/-5 from Shaw 2007 (FUdR, normalized); eat-2/age-1 ~+40% from their studies.
 const ADULT_LIFESPAN_DAYS_20C = {
-  'N2': 20, 'dpy-13': 20, 'daf-2': 34, 'daf-7': 27, 'daf-1': 29,
-  'daf-16': 18, 'daf-3': 20, 'daf-5': 17, 'eat-2': 28, 'age-1': 28,
+  'N2': 23, 'dpy-13': 23, 'daf-2': 26, 'daf-7': 27, 'daf-1': 29,
+  'daf-16': 15, 'daf-3': 23, 'daf-5': 20, 'eat-2': 28, 'age-1': 28,
 };
 // Lifespan scales inversely with metabolic rate — cold extends, heat shortens.
 const LIFESPAN_TEMP_FACTOR = { 10: 2.0, 15: 1.5, 20: 1.0, 25: 0.65 };
