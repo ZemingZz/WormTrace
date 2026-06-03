@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=64';
-import { PlateCanvas }       from './PlateCanvas.js?v=64';
-import { showToast, showConfirm } from './Toast.js?v=64';
-import { showFeedback }      from './Feedback.js?v=64';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=65';
+import { PlateCanvas }       from './PlateCanvas.js?v=65';
+import { showToast, showConfirm } from './Toast.js?v=65';
+import { showFeedback }      from './Feedback.js?v=65';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
-  STAGE_FOOD_FACTOR, DAUER,
-} from './LifeCycle.js?v=64';
+  STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
+} from './LifeCycle.js?v=65';
 
 export const pt = new PlateTracker();
 
@@ -948,7 +948,7 @@ function buildLifeTimeline(plate) {
   const adultStart = (stages.find(s => s.id === 'adult') ?? stages[stages.length - 1]).start;
   const eggDur   = stages[0].duration;
   const layWindow = 80;
-  const lifespan = adultStart + 16 * 24;              // adult death age (~18–20 d)
+  const lifespan = adultStart + adultLifespanHours(strainId, tempC);   // strain- & temp-specific adult death age
   // Dauer survival: dauers live off stored lipids and survive months without food,
   // far longer than adults (Klass & Hirsh 1976; up to ~4 months). After that they die.
   const DAUER_SURVIVAL = DAUER.survivalHoursMax;      // ~4 months (verified, LifeCycle.DAUER)
@@ -1593,20 +1593,24 @@ function openBinSimulator(binId) {
     return { byStage, alive, eggs, dauer, dead, seeded };
   };
 
-  // ── Outlier detection (statistical, only meaningful with ≥3 plates) ──────────
+  // ── Outlier detection — robust median ± k·MAD (Hampel), the field-standard
+  // for biological assays. Resistant to a crashed/contaminated plate distorting
+  // the threshold the way mean ± σ does. Only meaningful with ≥3 plates. ────────
   function outliers(pp) {
     const out = [];
     if (pp.length < 3) return out;
-    const stat = vals => { const m = vals.reduce((a, b) => a + b, 0) / vals.length; return { m, sd: Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / vals.length) }; };
-    const food = stat(pp.map(p => p.foodPct));
-    const dev = stat(pp.map(p => p.meanIdx));
-    const pop = stat(pp.map(p => p.pop));
+    const median = arr => { const s = [...arr].sort((a, b) => a - b); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+    const robust = vals => { const m = median(vals); const mad = 1.4826 * median(vals.map(v => Math.abs(v - m))); return { m, mad }; };  // scaled MAD ≈ σ
+    const K = 3;   // ~3 robust σ
+    const food = robust(pp.map(p => p.foodPct));
+    const dev = robust(pp.map(p => p.meanIdx));
+    const pop = robust(pp.map(p => p.pop));
     for (const p of pp) {
-      if (food.sd > 8 && p.foodPct < food.m - 1.4 * food.sd) out.push(`🍽 <b>${escHtml(p.name)}</b> low food (${p.foodPct.toFixed(0)}% vs avg ${food.m.toFixed(0)}%) — starving fastest`);
-      if (dev.sd > 0.5 && p.meanIdx > dev.m + 1.4 * dev.sd) out.push(`⏩ <b>${escHtml(p.name)}</b> ahead of group (mostly ${SHORT[p.domStage] ?? '—'})`);
-      else if (dev.sd > 0.5 && p.meanIdx < dev.m - 1.4 * dev.sd) out.push(`⏪ <b>${escHtml(p.name)}</b> lagging (mostly ${SHORT[p.domStage] ?? '—'})`);
-      if (pop.sd > 3 && p.pop > pop.m + 1.5 * pop.sd) out.push(`📈 <b>${escHtml(p.name)}</b> overgrown (${p.pop} vs avg ${pop.m.toFixed(0)})`);
-      else if (pop.sd > 3 && p.pop < pop.m - 1.5 * pop.sd) out.push(`📉 <b>${escHtml(p.name)}</b> low population (${p.pop} vs avg ${pop.m.toFixed(0)})`);
+      if (food.mad > 4 && p.foodPct < food.m - K * food.mad) out.push(`🍽 <b>${escHtml(p.name)}</b> low food (${p.foodPct.toFixed(0)}% vs median ${food.m.toFixed(0)}%) — starving fastest`);
+      if (dev.mad > 0.3 && p.meanIdx > dev.m + K * dev.mad) out.push(`⏩ <b>${escHtml(p.name)}</b> ahead of group (mostly ${SHORT[p.domStage] ?? '—'})`);
+      else if (dev.mad > 0.3 && p.meanIdx < dev.m - K * dev.mad) out.push(`⏪ <b>${escHtml(p.name)}</b> lagging (mostly ${SHORT[p.domStage] ?? '—'})`);
+      if (pop.mad > 2 && p.pop > pop.m + K * pop.mad) out.push(`📈 <b>${escHtml(p.name)}</b> overgrown (${p.pop} vs median ${pop.m.toFixed(0)})`);
+      else if (pop.mad > 2 && p.pop < pop.m - K * pop.mad) out.push(`📉 <b>${escHtml(p.name)}</b> low population (${p.pop} vs median ${pop.m.toFixed(0)})`);
       const dFrac = p.pop ? p.dauer / p.pop : 0;
       if (dFrac > 0.5 && p.dauer >= 2) out.push(`💤 <b>${escHtml(p.name)}</b> ${(dFrac * 100).toFixed(0)}% in dauer — stressed`);
       const mFrac = (p.pop + p.dead) ? p.dead / (p.pop + p.dead) : 0;
@@ -1683,8 +1687,12 @@ function openBinSimulator(binId) {
     const lowFood = pp.filter(p => p.inoc && p.foodPct <= 15).length;
     const doms = [...new Set(pp.filter(p => p.domStage).map(p => p.domStage))].sort((x, y) => devIdx(x) - devIdx(y));
     const sync = doms.length === 0 ? 'no worms' : doms.length === 1 ? `synchronized — all ${SHORT[doms[0]]}` : `mixed ${SHORT[doms[0]]}→${SHORT[doms[doms.length - 1]]}`;
+    // Reference adult lifespan per distinct strain in the bin (strain × its temp)
+    const strainTemps = [...new Map(sims.map(s => [s.plate.strainId, s.plate.tempC]))];
+    const lifeTxt = strainTemps.map(([sid, t]) => `${sid} ~${adultLifespanDays(sid, t)}d`).join(' · ');
     $('binSimSub').innerHTML =
-      `🐛 ${popNow} worms${a.seeded ? ` (from ${a.seeded} seeded${growth >= 1.1 ? `, ×${growth.toFixed(1)}` : ''})` : ''} · 🍽 ${foodTxt}${lowFood ? ` · <b style="color:#ef4444">${lowFood} starving</b>` : ''}<br>🔄 ${sync}`;
+      `🐛 ${popNow} worms${a.seeded ? ` (from ${a.seeded} seeded${growth >= 1.1 ? `, ×${growth.toFixed(1)}` : ''})` : ''} · 🍽 ${foodTxt}${lowFood ? ` · <b style="color:#ef4444">${lowFood} starving</b>` : ''}` +
+      `<br>🔄 ${sync}<br>⏳ adult lifespan: ${lifeTxt}`;
 
     // Per-plate cards: each worm type counted, food bar, dauer/dead/eggs
     $('binSimPlates').innerHTML = pp.map(p => {

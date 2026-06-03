@@ -308,6 +308,30 @@ export const STRAINS = {
 };
 
 /**
+ * Mean ADULT lifespan in days at 20 °C per strain (numeric companion to the
+ * human-readable `lifespan20C` strings). Used to drive death in the growth
+ * simulation so long-lived strains (daf-2, age-1, eat-2) persist realistically.
+ * Sources: Kenyon 1993; Lakowski & Hekimi 1998; Hahm 2018 (see DAUER_RESEARCH.md).
+ */
+const ADULT_LIFESPAN_DAYS_20C = {
+  'N2': 20, 'dpy-13': 19, 'daf-2': 45, 'daf-7': 20, 'daf-1': 20,
+  'daf-16': 15, 'daf-3': 20, 'daf-5': 20, 'eat-2': 29, 'age-1': 33,
+};
+// Lifespan scales inversely with metabolic rate — cold extends, heat shortens.
+const LIFESPAN_TEMP_FACTOR = { 10: 2.0, 15: 1.5, 20: 1.0, 25: 0.65 };
+
+/** Mean adult lifespan in HOURS for a strain at a temperature (post-adulthood). */
+export function adultLifespanHours(strainId = 'N2', tempC = 20) {
+  const days = ADULT_LIFESPAN_DAYS_20C[strainId] ?? 20;
+  const f = LIFESPAN_TEMP_FACTOR[tempC] ?? (tempC <= 12 ? 2.0 : tempC <= 17 ? 1.5 : tempC <= 22 ? 1.0 : 0.65);
+  return days * 24 * f;
+}
+/** Mean adult lifespan in DAYS (rounded) — for display. */
+export function adultLifespanDays(strainId = 'N2', tempC = 20) {
+  return Math.round(adultLifespanHours(strainId, tempC) / 24);
+}
+
+/**
  * DAUER — verified quantitative metrics for the dauer larva, used to parameterize
  * the simulation. Every figure here was cross-checked across ≥2 independent sources
  * (deep-research pass, 2026-06-02). Temperatures in °C, times in hours.
