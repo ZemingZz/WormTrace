@@ -43,6 +43,9 @@ export class WormLearner {
     const z = this._z(f);
     const ds = this.rows.map(r => ({ d: this._dist2(z, this._z(r.f)), cat: r.cat }))
       .sort((a, b) => a.d - b.d).slice(0, K);
+    // Plain k-NN majority. Tried class-weighting to lift worm recall but it tanked
+    // precision (80→49%) on real data — the right fix is more worm examples, not
+    // reweighting. So keep this simple; precision is what makes the marks trustworthy.
     const votes = {}; for (const x of ds) votes[x.cat] = (votes[x.cat] || 0) + 1;
     let best = 'large', bc = -1;
     for (const k in votes) if (votes[k] > bc) { bc = votes[k]; best = k; }
