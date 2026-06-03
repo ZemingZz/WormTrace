@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=67';
-import { PlateCanvas }       from './PlateCanvas.js?v=67';
-import { showToast, showConfirm } from './Toast.js?v=67';
-import { showFeedback }      from './Feedback.js?v=67';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=68';
+import { PlateCanvas }       from './PlateCanvas.js?v=68';
+import { showToast, showConfirm } from './Toast.js?v=68';
+import { showFeedback }      from './Feedback.js?v=68';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=67';
+} from './LifeCycle.js?v=68';
 
 export const pt = new PlateTracker();
 
@@ -467,7 +467,7 @@ function computePopulation(plate, hrs) {
   const targetFeed = initFood / (wormCount * adultRate);   // adult-equiv feed-hours available
   let foodOutHrs = Infinity;
   if (isFinite(targetFeed)) {
-    for (let h = 0; h <= 28 * 24; h += 2) {
+    for (let h = 0; h <= 80 * 24; h += 2) {
       if (cumulativeFeedHours(strainId, tempC, h) >= targetFeed) { foodOutHrs = h; break; }
     }
   }
@@ -957,7 +957,7 @@ function buildLifeTimeline(plate) {
   const canDauer = canFormDauer(strainId);
   const colorOf  = id => (stages.find(s => s.id === id)?.color ?? '#00d4aa');
 
-  const DT = 6, MAX_H = 28 * 24, POP_CAP = 5e6;
+  const DT = 6, MAX_H = 80 * 24, POP_CAP = 5e6;
   let food = plate.initialFood ?? 0.2;
 
   // Seed from ALL real cohorts (founding + user-added), each appearing at its
@@ -1095,7 +1095,7 @@ function simulateGenerations(plate, hrs) {
   const eggDur    = stageById.egg?.duration ?? 9;
   const adultStart = (stageById.adult ?? stages[stages.length - 1]).start;
   const layWindow  = 80;                         // hrs of active laying
-  const lifespanFromEgg = adultStart + 16 * 24;  // ~16 d adult life → death
+  const lifespanFromEgg = adultStart + adultLifespanHours(strainId, tempC);  // strain/temp adult life → death
   const maxEggs   = (STRAINS[strainId] ?? STRAINS.N2).maxEggs;
   const foundCount = plate.wormCount ?? 1;
 
@@ -1214,9 +1214,9 @@ function _initGrowthSimulator(plate, startHrs) {
   const stages    = getStages(plate.strainId, plate.tempC);
   const totalHrs  = stages[stages.length - 1].end;
   const adultStage = stages.find(s => s.id === 'adult') ?? stages[stages.length - 1];
-  // Cap the simulation at 28 days (after which a real plate is assumed
-  // contaminated). You can watch eggs hatch, generations grow, adults die.
-  const maxHrs    = 28 * 24;
+  // Cap the simulation at 80 days. You can watch eggs hatch, generations grow,
+  // and adults die of age (long-lived strains persist much longer).
+  const maxHrs    = 80 * 24;
   const maxEggs   = (STRAINS[plate.strainId] ?? STRAINS.N2).maxEggs;
   const initFood  = plate.initialFood ?? 0.5;
   const rate      = PlateTracker.CONSUMPTION_ML_PER_HR?.[plate.consumptionRate ?? 'standard'] ?? 0.0001;
@@ -1564,7 +1564,7 @@ function openBinSimulator(binId) {
     start: pt.elapsedSinceInoculation(p.id) ?? 0,   // dev-hours since inoculation (0 = not started)
     inoc: !!p.inoculatedAt,
   }));
-  const MAX_T = 21 * 24;   // scrub up to 21 days into the future
+  const MAX_T = 80 * 24;   // scrub up to 80 days into the future
 
   const stages = getStages('N2', 20);
   const nameOf  = id => (stages.find(s => s.id === id)?.name ?? id);
@@ -1698,7 +1698,7 @@ function openBinSimulator(binId) {
         `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
     }
     // X ticks + labels (days)
-    for (let d = 0; d * 24 <= MAX_T; d += 7) {
+    for (let d = 0; d * 24 <= MAX_T; d += 20) {
       const xx = survX(d * 24);
       g += `<line x1="${xx}" y1="${SV.y1}" x2="${xx}" y2="${SV.y1 + 4}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${xx}" y="${SV.y1 + 15}" font-size="9" fill="${A}" text-anchor="middle">${d}</text>`;
