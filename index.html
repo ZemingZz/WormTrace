@@ -50,6 +50,7 @@
   <div id="tabBar">
     <button class="tab-btn active" data-tab="plateTab">🧫 Plate Tracker</button>
     <button class="tab-btn"        data-tab="motionTab">🔬 Movement Tracker</button>
+    <button class="tab-btn"        data-tab="countTab">🔢 Worm Counter</button>
   </div>
 
   <!-- Tab content wrapper — takes remaining height, tabs swap inside -->
@@ -525,6 +526,93 @@
     </div>
   </div><!-- /plateTab -->
 
+  <!-- ══════════════════ WORM COUNTER TAB ══════════════════ -->
+  <div id="countTab" class="tab-view" style="position:absolute;inset:0;overflow-y:auto">
+    <div style="max-width:680px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px">
+
+      <style>
+        .cat-chip{display:inline-flex;align-items:center;gap:5px;border:2px solid transparent;border-radius:14px;
+          padding:4px 10px;font-size:11px;font-weight:600;background:#1e2a3a;color:#cbd5e1;cursor:pointer;
+          width:auto !important;flex:0 0 auto;min-height:unset}
+        .cat-chip .swatch{width:11px;height:11px;border-radius:50%}
+        .cat-chip.active{border-color:#fff;background:#0f3a32}
+        .lbl-zoom{width:32px;height:32px;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.2);
+          border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;min-height:unset;padding:0}
+        .mode-btn{background:#1e2a3a;color:#cbd5e1}
+        .mode-btn.active{background:var(--accent);color:#04201a}
+      </style>
+
+      <div class="panel-title">🔢 Worm Counter &amp; Labeler</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.5">
+        Upload a plate photo. Tap <b>✨ Auto pre-fill</b> to let the detector mark worms, then
+        <b>zoom in</b> (pinch or +) and <b>tap</b> to add the ones it missed or remove wrong ones —
+        great for clumped plates. Pick a category color first. <b>Export</b> your labels as a
+        training file to send back for improvement.
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-primary" id="btnCountUpload" style="flex:1;min-width:150px">📷 Upload Photo(s)</button>
+        <button class="btn-secondary" id="btnLabelImport" style="width:auto">📁 Load labels</button>
+      </div>
+      <input type="file" id="countFileInput" accept="image/*" multiple style="display:none">
+      <input type="file" id="labelImportInput" accept="application/json,.json" style="display:none">
+
+      <div id="countThumbs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="countEmpty" class="section-empty">No photo yet — upload one to start labeling.</div>
+
+      <div id="labelWrap" style="display:none;flex-direction:column;gap:8px">
+        <!-- category palette -->
+        <div id="catPalette" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+
+        <!-- labeling canvas -->
+        <div style="position:relative;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#0a0e1a">
+          <canvas id="labelCanvas" style="display:block;width:100%;height:62vh;touch-action:none"></canvas>
+          <div id="labelCounts" style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;padding:4px 8px;border-radius:6px;line-height:1.55;pointer-events:none"></div>
+          <div style="position:absolute;right:6px;bottom:6px;display:flex;flex-direction:column;gap:5px">
+            <button class="lbl-zoom" id="btnZoomIn">+</button>
+            <button class="lbl-zoom" id="btnZoomOut">−</button>
+            <button class="lbl-zoom" id="btnZoomReset" style="font-size:13px">⤢</button>
+          </div>
+        </div>
+
+        <!-- toolbar -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <button class="btn-sm mode-btn active" id="btnModeAdd" style="width:auto;border-radius:0">✏️ Add</button>
+            <button class="btn-sm mode-btn" id="btnModeErase" style="width:auto;border-radius:0">🧽 Erase</button>
+          </div>
+          <button class="btn-secondary btn-sm" id="btnPrefill" style="width:auto">✨ Auto pre-fill</button>
+          <button class="btn-secondary btn-sm" id="btnLabelClear" style="width:auto">🗑 Clear</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted)">Pinch or tap + to zoom into clumps. Tap a worm to mark it; tap a dot again to remove it. Drag to pan.</div>
+
+        <!-- detector settings (used by Auto pre-fill) -->
+        <details>
+          <summary style="font-size:11px;color:var(--muted);cursor:pointer">⚙ Detector settings (for Auto pre-fill)</summary>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+            <div class="ctrl-group">
+              <div class="ctrl-label">Sensitivity — <span id="countSensVal" style="color:var(--accent)">20</span></div>
+              <input type="range" id="countSens" min="6" max="55" step="1" value="20">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">Min worm size — <span id="countMinVal" style="color:var(--accent)">30</span></div>
+              <input type="range" id="countMin" min="5" max="400" step="5" value="30">
+            </div>
+            <div class="ctrl-group">
+              <div class="ctrl-label">Max worm size — <span id="countMaxVal" style="color:var(--accent)">4000</span></div>
+              <input type="range" id="countMax" min="500" max="12000" step="100" value="4000">
+            </div>
+          </div>
+        </details>
+
+        <!-- export -->
+        <button class="btn-primary btn-sm" id="btnLabelExport">💾 Export training file (.json)</button>
+        <div id="countSaveMsg" style="font-size:10px;color:var(--muted);line-height:1.4"></div>
+      </div>
+
+    </div>
+  </div><!-- /countTab -->
+
   </div><!-- /tab content wrapper -->
 
 </div><!-- /#app -->
@@ -537,6 +625,9 @@
   </button>
   <button class="mobile-tab-btn" data-tab="motionTab">
     <span class="mnav-icon">🎥</span><span class="mnav-label">Movement</span>
+  </button>
+  <button class="mobile-tab-btn" data-tab="countTab">
+    <span class="mnav-icon">🔢</span><span class="mnav-label">Counter</span>
   </button>
 </div>
 
@@ -627,10 +718,11 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/app.js?v=42"></script>
-<script type="module" src="js/plateApp.js?v=42"></script>
+<script type="module" src="js/app.js?v=44"></script>
+<script type="module" src="js/plateApp.js?v=44"></script>
+<script type="module" src="js/countApp.js?v=44"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=42';
+  import { initMobile } from './js/mobile.js?v=44';
   initMobile();
 </script>
 </body>

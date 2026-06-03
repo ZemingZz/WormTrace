@@ -48,7 +48,7 @@ function _applyLayout() {
   setTimeout(_showSwipeHint, 1500);
 
   // CRITICAL: force tab views to flex-column so panels fill height and scroll
-  ['motionTab','plateTab'].forEach(id => {
+  ['motionTab','plateTab','countTab'].forEach(id => {
     const tv = document.getElementById(id);
     if (!tv) return;
     tv.style.flexDirection    = 'column';
@@ -130,12 +130,15 @@ function _switchTab(tabId, clickTopBtn) {
   // Panel navs
   const motionNav = document.getElementById('motionMobileNav');
   const plateNav  = document.getElementById('plateMobileNav');
+  const mobileNav = document.getElementById('mobileNav');
   if (motionNav) motionNav.style.display = tabId === 'motionTab' ? 'flex' : 'none';
   if (plateNav)  plateNav.style.display  = tabId === 'plateTab'  ? 'flex' : 'none';
 
-  // Restore last panel for this tab
-  if (tabId === 'motionTab') _showMotionPanel(activeMotionPanel);
-  else                       _showPlatePanel(activePlatePanel);
+  // Restore last panel for this tab. Worm Counter is a single full-height panel
+  // with no sub-panels, so hide the bottom panel switcher entirely for it.
+  if (tabId === 'motionTab')      { _showMotionPanel(activeMotionPanel); if (mobileNav) mobileNav.style.display = 'flex'; }
+  else if (tabId === 'plateTab')  { _showPlatePanel(activePlatePanel);   if (mobileNav) mobileNav.style.display = 'flex'; }
+  else                            { if (mobileNav) mobileNav.style.display = 'none'; }
 
   _updateHighlights();
 }
@@ -284,6 +287,7 @@ function _initSwipe() {
 }
 
 function _panelStep(dir) {
+  if (activeTab !== 'motionTab' && activeTab !== 'plateTab') return;  // Counter = single panel
   const panels = activeTab === 'motionTab' ? MOTION_PANELS : PLATE_PANELS;
   const current = activeTab === 'motionTab' ? activeMotionPanel : activePlatePanel;
   const idx = panels.indexOf(current);
