@@ -543,12 +543,25 @@
       </style>
 
       <div class="panel-title">🔢 Worm Counter &amp; Labeler</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.5">
-        Upload a plate photo. Tap <b>✨ Auto pre-fill</b> to let the detector mark worms, then
-        <b>zoom in</b> (pinch or +) and <b>tap</b> to add the ones it missed or remove wrong ones —
-        great for clumped plates. Pick a category color first. <b>Export</b> your labels as a
-        training file to send back for improvement.
-      </div>
+      <details open style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:8px 11px">
+        <summary style="font-size:12px;font-weight:700;color:var(--accent);cursor:pointer">📖 How to train the counter — tap to show/hide</summary>
+        <ol style="font-size:11px;color:#cbd5e1;line-height:1.6;margin:8px 0 6px;padding-left:18px">
+          <li><b>Upload</b> a clear, top-down plate photo. <b>Worm-packed photos help most</b> — debris-only ones don't.</li>
+          <li>Tap <b>✨ Auto pre-fill</b> — it finds the worms and marks them (all as “Large”).</li>
+          <li><b>Zoom in</b> (pinch, or the <b>+</b> button) and clean it up:
+            <ul style="margin:3px 0;padding-left:16px">
+              <li>Tap an <b>unmarked worm</b> to add it · tap a dot again to <b>remove</b> a wrong one.</li>
+              <li>For small worms: tap <span style="color:#b446dc;font-weight:700">● Baby</span> or <span style="color:#ff8c00;font-weight:700">● Juvenile</span> in the palette first, then tap them.</li>
+              <li>Use <b>🧽 Erase</b> mode to clear several wrong dots quickly.</li>
+            </ul>
+          </li>
+          <li>Tap <b>✓ Confirm &amp; train</b> — this <b>auto-saves a file for this photo</b> and teaches the on-device model.</li>
+          <li><b>Load the next photo</b> and repeat. The model gets better each time.</li>
+        </ol>
+        <div style="font-size:10px;color:var(--muted);line-height:1.55;border-top:1px solid var(--border);padding-top:6px">
+          <b>Tips:</b> &nbsp;• Use a <b>new, different photo every time</b> — re-marking the same one adds nothing (it gets de-duplicated). &nbsp;• The app reliably tells <b>worm vs. debris</b>, but <b>you assign the sizes</b> (baby/juvenile/adult). &nbsp;• Collect <b>more juveniles &amp; babies</b> — those help most right now. &nbsp;• Send your saved <code>.json</code> files back to pool everyone's training data.
+        </div>
+      </details>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-primary" id="btnCountUpload" style="flex:1;min-width:150px">📷 Upload Photo(s)</button>
