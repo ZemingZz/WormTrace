@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=77';
-import { PlateCanvas }       from './PlateCanvas.js?v=77';
-import { showToast, showConfirm } from './Toast.js?v=77';
-import { showFeedback }      from './Feedback.js?v=77';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=79';
+import { PlateCanvas }       from './PlateCanvas.js?v=79';
+import { showToast, showConfirm } from './Toast.js?v=79';
+import { showFeedback }      from './Feedback.js?v=79';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=77';
+} from './LifeCycle.js?v=79';
 
 export const pt = new PlateTracker();
 
@@ -1588,6 +1588,23 @@ function openBinSimulator(binId) {
       kAge: Math.max(0.3, adultLifespanDays(p.strainId, p.tempC) / 20),  // Gompertz time-scale vs N2
     };
   });
+  // The survival curve is a pure strain+temperature lifespan property (assumes food
+  // always available & no reproduction), so plates of the SAME strain+temp draw the
+  // identical curve. Collapse to ONE line per strain+temp so the chart compares
+  // different worms instead of stacking redundant duplicates. (Per-plate cards & the
+  // dauer chart stay per-plate — those genuinely differ by food/population.)
+  const survSeries = (() => {
+    const groups = new Map();
+    for (const s of sims) {
+      const key = `${s.plate.strainId}|${s.plate.tempC}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)).push(s);
+    }
+    return [...groups.values()].map(gp => {
+      const rep = gp.find(s => s.inoc) ?? gp[0];   // representative (prefer an inoculated plate)
+      const strain = (STRAINS[rep.plate.strainId]?.label ?? rep.plate.strainId).split('—')[0].trim();
+      return { ...rep, label: `${strain} ${rep.plate.tempC}°C`, count: gp.length };
+    });
+  })();
   // Gompertz constants (N2 adult mortality, per day) — also used by the survival curve.
   const GA = 0.0016, GG = 0.23;
   const r1 = n => Math.round(n * 10) / 10;   // worm counts shown to 1 decimal place
@@ -1699,7 +1716,7 @@ function openBinSimulator(binId) {
 
       <div style="margin-bottom:6px">
         ${sec('Survival curve — % alive over time (lifespan model)')}
-        <div style="font-size:11px;color:var(--muted);margin:0 0 5px;line-height:1.35">ℹ️ Assumes food is always available &amp; worms are not reproducing (standard lifespan-assay model). The per-plate cards &amp; dauer chart above remain food-limited.</div>
+        <div style="font-size:11px;color:var(--muted);margin:0 0 5px;line-height:1.35">ℹ️ One line per strain + temperature (a lifespan property — plates of the same worm overlap). Assumes food is always available &amp; worms are not reproducing (standard lifespan-assay model). The per-plate cards &amp; dauer chart above remain food-limited.</div>
         <div id="binSimSurvival" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
 
@@ -1768,12 +1785,13 @@ function openBinSimulator(binId) {
       `<text x="${(SV.x0 + SV.x1) / 2}" y="${SV.y1 + 32}" font-size="11" fill="${A}" text-anchor="middle">Survival time (days)</text>` +
       `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">${yTitle}</text>`;
     let lines = '', legend = '';
-    sims.forEach((s, i) => {
+    survSeries.forEach((s, i) => {
       const col = SURV_PALETTE[i % SURV_PALETTE.length];
       lines += `<polyline points="${stepPath(t => valFn(s, t))}" fill="none" stroke="${col}" stroke-width="1.8"/>`;
       const ly = SV.y0 + 8 + i * 15;
+      const tag = s.count > 1 ? `${s.label} ×${s.count}` : s.label;
       legend += `<line x1="${SV.x1 + 14}" y1="${ly}" x2="${SV.x1 + 32}" y2="${ly}" stroke="${col}" stroke-width="2.6"/>` +
-        `<text x="${SV.x1 + 37}" y="${ly + 3}" font-size="9" fill="${A}">${escHtml(s.plate.name).slice(0, 18)}</text>`;
+        `<text x="${SV.x1 + 37}" y="${ly + 3}" font-size="9" fill="${A}">${escHtml(tag).slice(0, 24)}</text>`;
     });
     const marker = `<line id="${markerId}" x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="#888" stroke-width="1" stroke-dasharray="3 2"/>`;
     $(containerId).innerHTML =
