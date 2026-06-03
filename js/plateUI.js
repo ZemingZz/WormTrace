@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=72';
-import { PlateCanvas }       from './PlateCanvas.js?v=72';
-import { showToast, showConfirm } from './Toast.js?v=72';
-import { showFeedback }      from './Feedback.js?v=72';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=74';
+import { PlateCanvas }       from './PlateCanvas.js?v=74';
+import { showToast, showConfirm } from './Toast.js?v=74';
+import { showFeedback }      from './Feedback.js?v=74';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=72';
+} from './LifeCycle.js?v=74';
 
 export const pt = new PlateTracker();
 
@@ -963,7 +963,7 @@ function buildLifeTimeline(plate) {
   const canDauer = canFormDauer(strainId);
   const colorOf  = id => (stages.find(s => s.id === id)?.color ?? '#00d4aa');
 
-  const DT = 6, MAX_H = 40 * 24, POP_CAP = 5e6;
+  const DT = 6, MAX_H = 90 * 24, POP_CAP = 5e6;   // headroom so charts can auto-fit long-lived strains
   let food = plate.initialFood ?? 0.2;
 
   // Seed from ALL real cohorts (founding + user-added), each appearing at its
@@ -1010,11 +1010,13 @@ function buildLifeTimeline(plate) {
       }
     }
     dead += agedDead;   // include cumulative old-age (Gompertz) deaths
-    const eggStanding = Math.round(eggCrop);
+    const r1 = n => Math.round(n * 10) / 10;   // worm counts shown to 1 decimal place
+    const eggStanding = r1(eggCrop);
     const population = Object.entries(byStage).map(([id, count]) => ({ stageId: id, color: colorOf(id), count: Math.round(count) }));
     if (dauer >= 1) population.push({ stageId: 'dauer', color: '#94a3b8', count: Math.round(dauer) });
-    snaps.push({ h, population, byStage, alive: Math.round(alive), dauer: Math.round(dauer),
-      dead: Math.round(dead), eggs: eggStanding, foodPct: (food / (plate.initialFood ?? 0.2)) * 100 });
+    const byStageR = {}; for (const k in byStage) byStageR[k] = r1(byStage[k]);
+    snaps.push({ h, population, byStage: byStageR, alive: r1(alive), dauer: r1(dauer),
+      dead: r1(dead), eggs: eggStanding, foodPct: (food / (plate.initialFood ?? 0.2)) * 100 });
 
     // 2) Consume food (dauer & dead & eggs don't feed)
     let consume = 0;
@@ -1586,7 +1588,17 @@ function openBinSimulator(binId) {
       kAge: Math.max(0.3, adultLifespanDays(p.strainId, p.tempC) / 20),  // Gompertz time-scale vs N2
     };
   });
-  const MAX_T = 30 * 24;   // scrub up to 30 days into the future
+  // Gompertz constants (N2 adult mortality, per day) — also used by the survival curve.
+  const GA = 0.0016, GG = 0.23;
+  const r1 = n => Math.round(n * 10) / 10;   // worm counts shown to 1 decimal place
+  // Auto-fit the x-axis: run until the longest-lived strain's survival reaches ~2%,
+  // so the full curve is visible. Rounded up to a tidy number, clamped 20–85 days.
+  const TAU2 = Math.log(1 + (GG / GA) * Math.log(50)) / GG;   // adult-days to ~2% survival (k=1)
+  const devNow = s => s.start + (s.plate.stageStartOffset ?? 0);   // founders' current dev-age (hrs)
+  const tailDays = s => TAU2 * s.kAge + Math.max(0, (s.adultStartHrs - devNow(s)) / 24);
+  const graphDays = Math.min(85, Math.max(20, Math.ceil(Math.max(...sims.map(tailDays)) / 10) * 10));
+  const MAX_T = graphDays * 24;
+  const dStep = graphDays <= 45 ? 10 : 20;   // x-axis tick spacing (days)
 
   const stages = getStages('N2', 20);
   const nameOf  = id => (stages.find(s => s.id === id)?.name ?? id);
@@ -1713,11 +1725,10 @@ function openBinSimulator(binId) {
   // accrue gradually by daily probability rather than all at once. Assumes worms
   // are maintained/fed (the standard survival-assay condition); the dashed dauer
   // line below reflects the actual food/population dynamics. N2: A≈0.0016, G≈0.23/d.
-  const GA = 0.0016, GG = 0.23;
   const survAt = (s, t) => {
     if (!s.inoc) return 100;
-    const adultDays = ((s.start + t) - s.adultStartHrs) / 24;
-    if (adultDays <= 0) return 100;                       // not laying-age yet → full survival
+    const adultDays = (devNow(s) + t - s.adultStartHrs) / 24;   // days into adulthood at scrub time t
+    if (adultDays <= 0) return 100;                              // not yet adult → full survival
     const S = Math.exp(-(GA / GG) * (Math.exp((GG / s.kAge) * adultDays) - 1));
     return 100 * S;
   };
@@ -1746,7 +1757,7 @@ function openBinSimulator(binId) {
       g += `<line x1="${SV.x0 - 4}" y1="${yy}" x2="${SV.x0}" y2="${yy}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
     }
-    for (let d = 0; d * 24 <= MAX_T; d += 10) {
+    for (let d = 0; d * 24 <= MAX_T; d += dStep) {
       const xx = survX(d * 24);
       g += `<line x1="${xx}" y1="${SV.y1}" x2="${xx}" y2="${SV.y1 + 4}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${xx}" y="${SV.y1 + 15}" font-size="9" fill="${A}" text-anchor="middle">${d}</text>`;
@@ -1776,13 +1787,13 @@ function openBinSimulator(binId) {
     const pp = perPlateAt(T);
     const a = aggregate(pp);
     $('binSimTime').textContent = T <= 0 ? 'Now' : `+${fmtHours(T)} from now`;
-    $('binSimTotals').innerHTML = `🐛 <b style="color:#e2e8f0">${a.alive}</b> &nbsp; 🥚 ${a.eggs} &nbsp; 💤 ${a.dauer} &nbsp; ☠ ${a.dead}`;
+    $('binSimTotals').innerHTML = `🐛 <b style="color:#e2e8f0">${r1(a.alive)}</b> &nbsp; 🥚 ${r1(a.eggs)} &nbsp; 💤 ${r1(a.dauer)} &nbsp; ☠ ${r1(a.dead)}`;
 
     // Stacked stage distribution bar (whole bin)
     const segs = ORDER.filter(id => a.byStage[id] > 0);
     const totLiving = segs.reduce((s, id) => s + a.byStage[id], 0);
     $('binSimBar').innerHTML = totLiving
-      ? segs.map(id => `<div title="${nameOf(id)}: ${a.byStage[id]}" style="width:${(a.byStage[id] / totLiving * 100).toFixed(1)}%;background:${colorOf(id)}"></div>`).join('')
+      ? segs.map(id => `<div title="${nameOf(id)}: ${r1(a.byStage[id])}" style="width:${(a.byStage[id] / totLiving * 100).toFixed(1)}%;background:${colorOf(id)}"></div>`).join('')
       : '<div style="width:100%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#64748b">no live worms</div>';
 
     // Sub-metrics: growth, food spread, synchrony
@@ -1797,7 +1808,7 @@ function openBinSimulator(binId) {
     const strainTemps = [...new Map(sims.map(s => [s.plate.strainId, s.plate.tempC]))];
     const lifeTxt = strainTemps.map(([sid, t]) => `${sid} ~${adultLifespanDays(sid, t)}d`).join(' · ');
     $('binSimSub').innerHTML =
-      `🐛 ${popNow} worms${a.seeded ? ` (from ${a.seeded} seeded${growth >= 1.1 ? `, ×${growth.toFixed(1)}` : ''})` : ''} · 🍽 ${foodTxt}${lowFood ? ` · <b style="color:#ef4444">${lowFood} starving</b>` : ''}` +
+      `🐛 ${r1(popNow)} worms${a.seeded ? ` (from ${a.seeded} seeded${growth >= 1.1 ? `, ×${growth.toFixed(1)}` : ''})` : ''} · 🍽 ${foodTxt}${lowFood ? ` · <b style="color:#ef4444">${lowFood} starving</b>` : ''}` +
       `<br>🔄 ${sync}<br>⏳ adult lifespan: ${lifeTxt}`;
 
     // Per-plate cards: each worm type counted, food bar, dauer/dead/eggs
@@ -1808,7 +1819,7 @@ function openBinSimulator(binId) {
       return `<div style="background:#0f172a;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
           <span style="font-size:12px;font-weight:700;color:#e2e8f0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.name)}</span>
-          <span style="font-size:10px;color:#64748b">🐛 ${p.pop}</span>
+          <span style="font-size:10px;color:#64748b">🐛 ${r1(p.pop)}</span>
           ${badges ? `<span style="font-size:10px;color:#64748b">${badges}</span>` : ''}
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${chips || '<span style="font-size:10px;color:#64748b">no live worms</span>'}</div>
