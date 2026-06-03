@@ -9,7 +9,7 @@
  * no training, and is tuned live with 3 sliders. It is the foundation for later
  * stage recognition (blob length → stage) and a trained model from labeled photos.
  */
-import { WormDetector } from './WormDetector.js?v=44';
+import { WormDetector } from './WormDetector.js?v=46';
 
 const WORK_MAX = 900;   // longest-edge working resolution (keeps CV fast & thresholds stable)
 
@@ -63,7 +63,21 @@ export class WormCounter {
     const detector = new WormDetector({ minArea, maxArea, minAspect });
     const blobs = detector.detect(cleaned, w, h);
 
-    return { count: blobs.length, blobs, workW: w, workH: h, scale };
+    // 6) Per-blob features for the learner: darkness (mean below local background)
+    //    and fill (area / bounding box). Plus image-level medians so sizes can be
+    //    normalized → the classifier transfers across magnifications.
+    for (const b of blobs) {
+      let dsum = 0;
+      for (const p of b.pixels) dsum += bg[p.y * w + p.x] - gray[p.y * w + p.x];
+      b.darkness = (dsum / Math.max(1, b.pixels.length)) / 128;          // ~0–2
+      const bw = b.maxX - b.minX + 1, bh = b.maxY - b.minY + 1;
+      b.fill = b.area / Math.max(1, bw * bh);                            // 0–1
+    }
+    const med = (arr) => { if (!arr.length) return 1; const s = [...arr].sort((a, c) => a - c); return s[s.length >> 1] || 1; };
+    const medianMajor = med(blobs.map(b => b.major));
+    const medianArea  = med(blobs.map(b => b.area));
+
+    return { count: blobs.length, blobs, workW: w, workH: h, scale, medianMajor, medianArea };
   }
 
   // ── Separable box blur (two O(n) passes) ─────────────────────────────────────

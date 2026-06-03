@@ -3,19 +3,30 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=44';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=44';
+import { WormCounter } from './WormCounter.js?v=46';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=46';
+import { WormLearner } from './WormLearner.js?v=46';
 
 const counter = new WormCounter();
+const learner = new WormLearner();
 const $ = id => document.getElementById(id);
 
 let labeler = null;
 let images = [];     // { id, name, imgEl, thumbUrl, points: [] }
 let selected = -1;
-let _recountTimer = null;
+
+// Permissive detector settings used to gather CANDIDATE blobs for training/smart
+// pre-fill — deliberately loose so eggs/debris are captured as negatives.
+const TRAIN_OPTS = { sensitivity: 16, minArea: 12, maxArea: 12000, minAspect: 1.0, blurRadius: 16 };
+const WORM_CATS = ['large', 'juvenile', 'baby'];   // what counts as a worm to mark
 
 function detectorOpts() {
   return { sensitivity: +$('countSens').value, minArea: +$('countMin').value, maxArea: +$('countMax').value };
+}
+function nearestPoint(pts, x, y, r) {
+  let best = r, hit = null;
+  for (const p of pts) { const d = Math.hypot(p.x - x, p.y - y); if (d < best) { best = d; hit = p; } }
+  return hit;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -40,6 +51,18 @@ function initCountTab() {
   $('btnLabelExport')?.addEventListener('click', exportTraining);
   $('btnLabelImport')?.addEventListener('click', () => $('labelImportInput').click());
   $('labelImportInput')?.addEventListener('change', onImport);
+
+  // ── In-app learning ──
+  $('btnConfirmTrain')?.addEventListener('click', confirmTrain);
+  $('btnModelExport')?.addEventListener('click', exportModel);
+  $('btnModelImport')?.addEventListener('click', () => $('modelImportInput').click());
+  $('modelImportInput')?.addEventListener('change', onModelImport);
+  $('btnModelReset')?.addEventListener('click', () => {
+    if (confirm('Reset the learned model? This erases all training on this device.')) {
+      learner.reset(); renderLearnPanel(); flash('Model reset.');
+    }
+  });
+  renderLearnPanel();
 
   ['countSens', 'countMin', 'countMax'].forEach(id => {
     $(id)?.addEventListener('input', () => {
@@ -139,17 +162,85 @@ function renderCounts() {
     (rows.length ? rows.join('<br>') : '<span style="color:#94a3b8">tap to mark</span>');
 }
 
-// ── Auto pre-fill from detector ─────────────────────────────────────────────
+// ── Smart pre-fill — uses the LEARNED model when trained, else raw detector ───
 function prefill() {
   if (selected < 0) return;
   const im = images[selected];
-  const res = counter.count(im.imgEl, detectorOpts());
-  // detector centroids are in WORKING-res coords → convert to image coords
-  const pts = res.blobs.map(b => ({ x: b.cx / res.scale, y: b.cy / res.scale }));
-  // avoid duplicating near existing marks
-  const fresh = pts.filter(p => !labeler.points.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 12 / res.scale));
-  labeler.prefill(fresh, 'large');
-  flash(`Auto pre-fill added ${fresh.length} marks (detector found ${res.count}). Zoom in and fix any misses.`);
+  const smart = learner.ready();
+  const res = counter.count(im.imgEl, smart ? TRAIN_OPTS : detectorOpts());
+  const matchR = 12 / res.scale;
+  let added = 0, rejected = 0;
+  for (const b of res.blobs) {
+    const x = b.cx / res.scale, y = b.cy / res.scale;
+    if (labeler.points.some(q => Math.hypot(q.x - x, q.y - y) < matchR)) continue;
+    let cat = 'large';
+    if (smart) {
+      const pred = learner.predict(learner.featureVec(b, res));
+      if (!WORM_CATS.includes(pred.cat)) { rejected++; continue; }  // model says egg/debris
+      cat = pred.cat;
+    }
+    labeler.points.push({ x, y, cat });
+    added++;
+  }
+  labeler.render(); labeler.onChange?.(labeler.counts());
+  flash(smart
+    ? `🧠 Learned model added ${added} worms (skipped ${rejected} as egg/debris). Zoom in and fix any misses, then Confirm & Train.`
+    : `Auto pre-fill added ${added} marks (raw detector). Mark missed worms, then Confirm & Train to teach the model.`);
+}
+
+// ── Confirm & Train — commit this image's labels into the learner ────────────
+function confirmTrain() {
+  if (selected < 0) { flash('Upload a photo first.'); return; }
+  const im = images[selected];
+  if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix).'); return; }
+  const res = counter.count(im.imgEl, TRAIN_OPTS);   // permissive candidates
+  const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
+  const rows = res.blobs.map(b => {
+    const x = b.cx / res.scale, y = b.cy / res.scale;
+    const near = nearestPoint(labeler.points, x, y, matchR);
+    return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
+  });
+  learner.addExamples(rows);
+  renderLearnPanel();
+  const s = learner.stats();
+  const acc = s.accuracy != null ? ` · ~${Math.round(s.accuracy * 100)}% accurate` : '';
+  flash(`✓ Trained on "${im.name}" (${labeler.points.length} marks). Model: ${s.images} images, ${s.examples} examples${acc}. Upload the next photo and keep going.`);
+}
+
+function renderLearnPanel() {
+  const el = $('learnStats'); if (!el) return;
+  const s = learner.stats();
+  if (!s.examples) { el.innerHTML = '<span style="color:#94a3b8">No training yet — mark a photo and tap “Confirm &amp; train”.</span>'; return; }
+  const acc = s.accuracy != null ? `${Math.round(s.accuracy * 100)}%` : '—';
+  const cats = WORM_CATS.concat('none').filter(c => s.byCat[c])
+    .map(c => `${c === 'none' ? 'egg/debris' : c}: ${s.byCat[c]}`).join(' · ');
+  el.innerHTML =
+    `<b style="color:#00d4aa">${s.images}</b> images · <b style="color:#00d4aa">${s.examples}</b> examples · self-accuracy <b>${acc}</b>` +
+    (learner.ready() ? ' · <span style="color:#22c55e">model active ✓</span>' : ' · <span style="color:#fbbf24">needs more data</span>') +
+    `<br><span style="color:#64748b">${cats}</span>`;
+}
+
+// ── Model export / merge / —──────────────────────────────────────────────────
+function exportModel() {
+  const s = learner.stats();
+  if (!s.examples) { flash('Nothing to export — train on a photo first.'); return; }
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  download(`wormtrace-model_${s.images}img_${s.examples}ex_${stamp}.json`, JSON.stringify(learner.export()));
+  flash(`Exported model (${s.images} images, ${s.examples} examples). Share or send this to pool training data.`);
+}
+function onModelImport(e) {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const before = learner.stats().examples;
+      learner.importMerge(JSON.parse(ev.target.result));
+      renderLearnPanel();
+      flash(`Merged model — added ${learner.stats().examples - before} examples. Now ${learner.stats().examples} total.`);
+    } catch (err) { flash('Merge failed: ' + err.message); }
+  };
+  reader.readAsText(file);
 }
 
 // ── Export / import training file ───────────────────────────────────────────

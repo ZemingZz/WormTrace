@@ -605,8 +605,27 @@
           </div>
         </details>
 
-        <!-- export -->
-        <button class="btn-primary btn-sm" id="btnLabelExport">💾 Export training file (.json)</button>
+        <!-- confirm & train -->
+        <button class="btn-primary" id="btnConfirmTrain" style="background:#15803d">✓ Confirm &amp; train on this image</button>
+
+        <!-- learning panel -->
+        <div class="ctrl-group" style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:10px;gap:8px;display:flex;flex-direction:column">
+          <div class="ctrl-label">🧠 In-app learning</div>
+          <div id="learnStats" style="font-size:11px;line-height:1.6"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-secondary btn-sm" id="btnModelExport" style="width:auto">⬇ Export model</button>
+            <button class="btn-secondary btn-sm" id="btnModelImport" style="width:auto">⬆ Merge model</button>
+            <button class="btn-secondary btn-sm" id="btnModelReset" style="width:auto">Reset</button>
+          </div>
+          <input type="file" id="modelImportInput" accept="application/json,.json" style="display:none">
+          <div style="font-size:10px;color:var(--muted);line-height:1.4">
+            The model learns on this device and gets better each time you Confirm &amp; train.
+            “Export model” shares it (pool with other users / send for offline training).
+          </div>
+        </div>
+
+        <!-- export this image's labels (for offline model training) -->
+        <button class="btn-secondary btn-sm" id="btnLabelExport">💾 Export this image + labels (.json)</button>
         <div id="countSaveMsg" style="font-size:10px;color:var(--muted);line-height:1.4"></div>
       </div>
 
@@ -718,11 +737,11 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/app.js?v=44"></script>
-<script type="module" src="js/plateApp.js?v=44"></script>
-<script type="module" src="js/countApp.js?v=44"></script>
+<script type="module" src="js/app.js?v=46"></script>
+<script type="module" src="js/plateApp.js?v=46"></script>
+<script type="module" src="js/countApp.js?v=46"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=44';
+  import { initMobile } from './js/mobile.js?v=46';
   initMobile();
 </script>
 </body>
