@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=75';
-import { PlateCanvas }       from './PlateCanvas.js?v=75';
-import { showToast, showConfirm } from './Toast.js?v=75';
-import { showFeedback }      from './Feedback.js?v=75';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=76';
+import { PlateCanvas }       from './PlateCanvas.js?v=76';
+import { showToast, showConfirm } from './Toast.js?v=76';
+import { showFeedback }      from './Feedback.js?v=76';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=75';
+} from './LifeCycle.js?v=76';
 
 export const pt = new PlateTracker();
 
@@ -1703,7 +1703,7 @@ function openBinSimulator(binId) {
       </div>
 
       <div style="margin-bottom:6px">
-        ${sec('Dauer curve — % of living worms in dauer')}
+        ${sec('Dauer — % of living worms in dauer (per plate, at current time)')}
         <div id="binSimDauer" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
     </div>`;
@@ -1780,8 +1780,34 @@ function openBinSimulator(binId) {
   }
   const buildCharts = () => {
     buildChart('binSimSurvival', survAt, 'binSimSurvMarker', 'Percent survival');
-    buildChart('binSimDauer', dauerAt, 'binSimDauerMarker', 'Percent in dauer');
   };
+  // Dauer = a BAR chart (one bar per plate) of the % in dauer AT the scrub time T;
+  // redrawn each frame so the bars rise/fall as you scrub. Pairs with the survival line.
+  function renderDauerBars(T) {
+    const A = '#111';
+    const slot = (SV.x1 - SV.x0) / Math.max(1, sims.length);
+    const barW = Math.min(60, slot * 0.6);
+    let g = `<rect x="0" y="0" width="${SV.W}" height="${SV.H}" fill="#ffffff"/>`;
+    for (const pct of [0, 25, 50, 75, 100]) {
+      const yy = survY(pct);
+      g += `<line x1="${SV.x0}" y1="${yy}" x2="${SV.x1}" y2="${yy}" stroke="#eee" stroke-width="1"/>` +
+        `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
+    }
+    g += `<line x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
+      `<line x1="${SV.x0}" y1="${SV.y1}" x2="${SV.x1}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
+      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">Percent in dauer</text>`;
+    sims.forEach((s, i) => {
+      const col = SURV_PALETTE[i % SURV_PALETTE.length];
+      const pct = dauerAt(s, T);
+      const cx = SV.x0 + slot * (i + 0.5);
+      const by = survY(pct), bh = SV.y1 - by;
+      g += `<rect x="${(cx - barW / 2).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" fill="${col}" rx="2"/>`;
+      if (pct >= 1) g += `<text x="${cx.toFixed(1)}" y="${(by - 3).toFixed(1)}" font-size="9" fill="${A}" text-anchor="middle">${r1(pct)}%</text>`;
+      g += `<text x="${cx.toFixed(1)}" y="${SV.y1 + 13}" font-size="8" fill="${A}" text-anchor="middle">${escHtml(s.plate.name).slice(0, 9)}</text>`;
+    });
+    $('binSimDauer').innerHTML =
+      `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block;border-radius:6px">${g}</svg>`;
+  }
 
   function renderAt(T) {
     const pp = perPlateAt(T);
@@ -1838,12 +1864,10 @@ function openBinSimulator(binId) {
     $('binSimOutliersWrap').style.display = al.length ? 'block' : 'none';
     if (al.length) $('binSimOutliers').innerHTML = al.map(t => `<div style="font-size:11px;color:#fcd34d;line-height:1.5;margin-bottom:3px">${t}</div>`).join('');
 
-    // Move both charts' "now" markers to the current scrub time
-    const xx = survX(T).toFixed(1);
-    for (const id of ['binSimSurvMarker', 'binSimDauerMarker']) {
-      const mk = $(id);
-      if (mk) { mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
-    }
+    // Move the survival-curve "now" marker; redraw the dauer bars at this time
+    const mk = $('binSimSurvMarker');
+    if (mk) { const xx = survX(T).toFixed(1); mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
+    renderDauerBars(T);
   }
 
   let simT = 0, playing = false, rate = 6, rafId = null, lastTs = null;
