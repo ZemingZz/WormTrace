@@ -9,7 +9,7 @@
  * no training, and is tuned live with 3 sliders. It is the foundation for later
  * stage recognition (blob length → stage) and a trained model from labeled photos.
  */
-import { WormDetector } from './WormDetector.js?v=69';
+import { WormDetector } from './WormDetector.js?v=71';
 
 const WORK_MAX = 900;   // longest-edge working resolution (keeps CV fast & thresholds stable)
 

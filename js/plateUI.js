@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=69';
-import { PlateCanvas }       from './PlateCanvas.js?v=69';
-import { showToast, showConfirm } from './Toast.js?v=69';
-import { showFeedback }      from './Feedback.js?v=69';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=71';
+import { PlateCanvas }       from './PlateCanvas.js?v=71';
+import { showToast, showConfirm } from './Toast.js?v=71';
+import { showFeedback }      from './Feedback.js?v=71';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=69';
+} from './LifeCycle.js?v=71';
 
 export const pt = new PlateTracker();
 
@@ -948,7 +948,13 @@ function buildLifeTimeline(plate) {
   const adultStart = (stages.find(s => s.id === 'adult') ?? stages[stages.length - 1]).start;
   const eggDur   = stages[0].duration;
   const layWindow = 80;
-  const lifespan = adultStart + adultLifespanHours(strainId, tempC);   // strain- & temp-specific adult death age
+  // Age-specific adult mortality (Gompertz): hazard μ(t) = A·e^(G·t) per day, t =
+  // days into adulthood. N2 reference A≈0.0016/d, G≈0.23/d → median ~20 d, daily
+  // death <1%/d in week 1 rising to ~6%/d by d15, ~19%/d by d20 (Olsen/Lithgow,
+  // PMC2753291). We "temporally scale" per strain/temp so each strain's median
+  // matches its adultLifespanDays — so longer-lived strains age more slowly.
+  const GOMP_A = 0.0016, GOMP_G = 0.23;
+  const kAging = Math.max(0.3, adultLifespanDays(strainId, tempC) / 20);
   // Dauer survival: dauers live off stored lipids and survive months without food,
   // far longer than adults (Klass & Hirsh 1976; up to ~4 months). After that they die.
   const DAUER_SURVIVAL = DAUER.survivalHoursMax;      // ~4 months (verified, LifeCycle.DAUER)
@@ -973,6 +979,7 @@ function buildLifeTimeline(plate) {
 
   // cohort: { age, count, dauer, dead, dauerAge }
   let cohorts = [];
+  let agedDead = 0;                          // cumulative fractional old-age (Gompertz) deaths
   const snaps = [];
   const stageIdAt = age => getCurrentStage(age, strainId, tempC).stage.id;
 
@@ -1002,6 +1009,7 @@ function buildLifeTimeline(plate) {
         eggCrop += c.count * layRate * Math.min(timeLaying, eggDur);
       }
     }
+    dead += agedDead;   // include cumulative old-age (Gompertz) deaths
     const eggStanding = Math.round(eggCrop);
     const population = Object.entries(byStage).map(([id, count]) => ({ stageId: id, color: colorOf(id), count: Math.round(count) }));
     if (dauer >= 1) population.push({ stageId: 'dauer', color: '#94a3b8', count: Math.round(dauer) });
@@ -1048,7 +1056,15 @@ function buildLifeTimeline(plate) {
       if (c.dead) continue;
       if (c.dauer) { c.dauerAge += DT; if (c.dauerAge >= DAUER_SURVIVAL) c.dead = true; continue; }
       c.age += DT;
-      if (c.age >= lifespan) c.dead = true;
+      // Age-specific old-age mortality: a FRACTION of each adult cohort dies each
+      // step per the Gompertz hazard (rises with adult age) → smooth survival curve.
+      if (c.age >= adultStart) {
+        const ageDays = (c.age - adultStart) / 24;
+        const mu = (GOMP_A / kAging) * Math.exp((GOMP_G / kAging) * ageDays);   // per day
+        const d = c.count * (1 - Math.exp(-mu * (DT / 24)));
+        c.count -= d; agedDead += d;
+        if (c.count < 0.01) c.dead = true;   // negligible remainder → retire the cohort
+      }
     }
 
     // 6) Merge cohorts to keep it fast (group living by ~age bucket; pool dauer/dead)
@@ -1558,12 +1574,18 @@ function openBinSimulator(binId) {
   const plates = pt.getPlatesInBin(binId);
   if (!plates.length) { showToast('This bin has no plates to simulate.'); return; }
 
-  const sims = plates.map(p => ({
-    plate: p,
-    snaps: buildLifeTimeline(p),
-    start: pt.elapsedSinceInoculation(p.id) ?? 0,   // dev-hours since inoculation (0 = not started)
-    inoc: !!p.inoculatedAt,
-  }));
+  const sims = plates.map(p => {
+    const st = getStages(p.strainId, p.tempC);
+    const adultStartHrs = (st.find(s => s.id === 'adult') ?? st[st.length - 1]).start;
+    return {
+      plate: p,
+      snaps: buildLifeTimeline(p),
+      start: pt.elapsedSinceInoculation(p.id) ?? 0,   // dev-hours since inoculation (0 = not started)
+      inoc: !!p.inoculatedAt,
+      adultStartHrs,                                   // dev-hour adulthood begins (for the aging curve)
+      kAge: Math.max(0.3, adultLifespanDays(p.strainId, p.tempC) / 20),  // Gompertz time-scale vs N2
+    };
+  });
   const MAX_T = 30 * 24;   // scrub up to 30 days into the future
 
   const stages = getStages('N2', 20);
@@ -1681,12 +1703,18 @@ function openBinSimulator(binId) {
   const SV = { W: 520, H: 250, x0: 46, x1: 338, y0: 18, y1: 208, yMax: 105 };
   const survX = t => SV.x0 + (Math.min(t, MAX_T) / MAX_T) * (SV.x1 - SV.x0);
   const survY = pct => SV.y0 + (1 - pct / SV.yMax) * (SV.y1 - SV.y0);
+  // Survival = a proper lifespan-assay aging curve: founders age and die per the
+  // strain's Gompertz hazard μ(τ)=(A/k)·e^((G/k)τ) (τ = days as adult), so deaths
+  // accrue gradually by daily probability rather than all at once. Assumes worms
+  // are maintained/fed (the standard survival-assay condition); the dashed dauer
+  // line below reflects the actual food/population dynamics. N2: A≈0.0016, G≈0.23/d.
+  const GA = 0.0016, GG = 0.23;
   const survAt = (s, t) => {
     if (!s.inoc) return 100;
-    const snap = timelineAt(s.snaps, s.start + t);
-    if (!snap) return 100;
-    const living = snap.alive + snap.dauer, tot = living + snap.dead;
-    return tot > 0 ? (living / tot) * 100 : 100;
+    const adultDays = ((s.start + t) - s.adultStartHrs) / 24;
+    if (adultDays <= 0) return 100;                       // not laying-age yet → full survival
+    const S = Math.exp(-(GA / GG) * (Math.exp((GG / s.kAge) * adultDays) - 1));
+    return 100 * S;
   };
   const dauerAt = (s, t) => {   // % of living worms that are in dauer
     if (!s.inoc) return 0;

@@ -3,7 +3,7 @@
  * egg count tracking, multi-strain support, biohazard bin, and Excel export.
  */
 
-import { cumulativeFeedHours } from './LifeCycle.js?v=69';
+import { cumulativeFeedHours } from './LifeCycle.js?v=71';
 
 const STORE_KEY = 'wormtrace_plates_v2';
 const BIN_KEY   = 'wormtrace_biohazard_bin';
