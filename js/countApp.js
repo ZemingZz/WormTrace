@@ -3,9 +3,9 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=50';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=50';
-import { WormLearner } from './WormLearner.js?v=50';
+import { WormCounter } from './WormCounter.js?v=51';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=51';
+import { WormLearner } from './WormLearner.js?v=51';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -173,18 +173,20 @@ function prefill() {
   for (const b of res.blobs) {
     const x = b.cx / res.scale, y = b.cy / res.scale;
     if (labeler.points.some(q => Math.hypot(q.x - x, q.y - y) < matchR)) continue;
-    let cat = 'large';
     if (smart) {
+      // Model is reliable for WORM-vs-not (egg/debris), but NOT for size class:
+      // features are size-normalized per image, so baby/juvenile/large aren't
+      // separable. Use it only to keep/reject worms; mark all as generic 'large'
+      // and let the user re-tag babies/juveniles by hand.
       const pred = learner.predict(learner.featureVec(b, res));
-      if (!WORM_CATS.includes(pred.cat)) { rejected++; continue; }  // model says egg/debris
-      cat = pred.cat;
+      if (!WORM_CATS.includes(pred.cat)) { rejected++; continue; }   // model says egg/debris
     }
-    labeler.points.push({ x, y, cat });
+    labeler.points.push({ x, y, cat: 'large' });
     added++;
   }
   labeler.render(); labeler.onChange?.(labeler.counts());
   flash(smart
-    ? `🧠 Learned model added ${added} worms (skipped ${rejected} as egg/debris). Zoom in and fix any misses, then Confirm & Train.`
+    ? `🧠 Learned model added ${added} worms (skipped ${rejected} as egg/debris). All marked as worms — re-tag any babies/juveniles, then Confirm & Train.`
     : `Auto pre-fill added ${added} marks (raw detector). Mark missed worms, then Confirm & Train to teach the model.`);
 }
 
