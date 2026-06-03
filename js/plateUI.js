@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=65';
-import { PlateCanvas }       from './PlateCanvas.js?v=65';
-import { showToast, showConfirm } from './Toast.js?v=65';
-import { showFeedback }      from './Feedback.js?v=65';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=66';
+import { PlateCanvas }       from './PlateCanvas.js?v=66';
+import { showToast, showConfirm } from './Toast.js?v=66';
+import { showFeedback }      from './Feedback.js?v=66';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=65';
+} from './LifeCycle.js?v=66';
 
 export const pt = new PlateTracker();
 
@@ -1658,13 +1658,62 @@ function openBinSimulator(binId) {
         <div id="binSimOutliers" style="background:#1a1206;border:1px solid #7c5e1a;border-radius:12px;padding:10px"></div>
       </div>
 
-      <div style="margin-bottom:6px">
+      <div style="margin-bottom:14px">
         ${sec('Per plate — worms by stage, food, dauer')}
         <div id="binSimPlates"></div>
+      </div>
+
+      <div style="margin-bottom:6px">
+        ${sec('Survival curve — % alive over time (per plate)')}
+        <div id="binSimSurvival" style="background:#0f172a;border:1px solid var(--border);border-radius:12px;padding:10px 8px"></div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   const $ = id => document.getElementById(id);
+
+  // ── Survival curve geometry + data ───────────────────────────────────────────
+  // Survival = living (alive + dauer) ÷ (living + dead) × 100 at each time, sampled
+  // across the shared "from now" timeline. One polyline per plate; long-lived strains
+  // (fewer age-deaths) sit higher. A dashed marker tracks the scrub position.
+  const SURV_PALETTE = ['#00d4aa', '#f472b6', '#fbbf24', '#60a5fa', '#a78bfa', '#ef4444', '#34d399', '#fb923c', '#22d3ee', '#e879f9'];
+  const SV = { W: 460, H: 172, mL: 30, mR: 10, mT: 8, mB: 42 };
+  SV.plotW = SV.W - SV.mL - SV.mR; SV.plotH = SV.H - SV.mT - SV.mB;
+  const survX = t => SV.mL + (Math.min(t, MAX_T) / MAX_T) * SV.plotW;
+  const survY = pct => SV.mT + (1 - pct / 100) * SV.plotH;
+  const survAt = (s, t) => {
+    if (!s.inoc) return 100;
+    const snap = timelineAt(s.snaps, s.start + t);
+    if (!snap) return 100;
+    const living = snap.alive + snap.dauer, tot = living + snap.dead;
+    return tot > 0 ? (living / tot) * 100 : 100;
+  };
+  function buildSurvivalChart() {
+    let g = '';
+    for (const pct of [0, 25, 50, 75, 100]) {
+      const yy = survY(pct);
+      g += `<line x1="${SV.mL}" y1="${yy}" x2="${SV.mL + SV.plotW}" y2="${yy}" stroke="#1e293b" stroke-width="1"/>` +
+        `<text x="${SV.mL - 4}" y="${yy + 3}" font-size="8" fill="#64748b" text-anchor="end">${pct}</text>`;
+    }
+    for (let d = 0; d * 24 <= MAX_T; d += 7) {
+      const xx = survX(d * 24);
+      g += `<line x1="${xx}" y1="${SV.mT}" x2="${xx}" y2="${SV.mT + SV.plotH}" stroke="#1e293b" stroke-width="1"/>` +
+        `<text x="${xx}" y="${SV.mT + SV.plotH + 12}" font-size="8" fill="#64748b" text-anchor="middle">${d}d</text>`;
+    }
+    let lines = '', legend = '';
+    sims.forEach((s, i) => {
+      const col = SURV_PALETTE[i % SURV_PALETTE.length];
+      let pts = '';
+      for (let t = 0; t <= MAX_T; t += 12) pts += `${survX(t).toFixed(1)},${survY(survAt(s, t)).toFixed(1)} `;
+      lines += `<polyline points="${pts.trim()}" fill="none" stroke="${col}" stroke-width="1.8" opacity="0.9"/>`;
+      legend += `<span style="display:inline-flex;align-items:center;gap:3px;margin:0 8px 2px 0;font-size:9px;color:#cbd5e1">` +
+        `<span style="width:9px;height:9px;background:${col};border-radius:2px;display:inline-block"></span>${escHtml(s.plate.name)}</span>`;
+    });
+    const ylab = `<text x="9" y="${SV.mT + SV.plotH / 2}" font-size="8" fill="#64748b" text-anchor="middle" transform="rotate(-90 9 ${SV.mT + SV.plotH / 2})">% alive</text>`;
+    const marker = `<line id="binSimSurvMarker" x1="${SV.mL}" y1="${SV.mT}" x2="${SV.mL}" y2="${SV.mT + SV.plotH}" stroke="#00d4aa" stroke-width="1.2" stroke-dasharray="3 2"/>`;
+    $('binSimSurvival').innerHTML =
+      `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block">${g}${ylab}${lines}${marker}</svg>` +
+      `<div style="margin-top:4px;line-height:1.7">${legend}</div>`;
+  }
 
   function renderAt(T) {
     const pp = perPlateAt(T);
@@ -1720,6 +1769,10 @@ function openBinSimulator(binId) {
     const al = outliers(pp);
     $('binSimOutliersWrap').style.display = al.length ? 'block' : 'none';
     if (al.length) $('binSimOutliers').innerHTML = al.map(t => `<div style="font-size:11px;color:#fcd34d;line-height:1.5;margin-bottom:3px">${t}</div>`).join('');
+
+    // Move the survival-curve "now" marker to the current scrub time
+    const mk = $('binSimSurvMarker');
+    if (mk) { const xx = survX(T).toFixed(1); mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
   }
 
   let simT = 0, playing = false, rate = 6, rafId = null, lastTs = null;
@@ -1738,6 +1791,7 @@ function openBinSimulator(binId) {
   $('binSimReset').onclick = () => { stop(); simT = 0; $('binSimScrub').value = 0; renderAt(0); };
   $('btnCloseBinSim').onclick = () => { stop(); overlay.remove(); };
 
+  buildSurvivalChart();   // static per-plate curves (marker tracks scrub in renderAt)
   renderAt(0);
 }
 
