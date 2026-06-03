@@ -3,9 +3,9 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=46';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=46';
-import { WormLearner } from './WormLearner.js?v=46';
+import { WormCounter } from './WormCounter.js?v=49';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=49';
+import { WormLearner } from './WormLearner.js?v=49';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -200,11 +200,20 @@ function confirmTrain() {
     const near = nearestPoint(labeler.points, x, y, matchR);
     return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
   });
+  // Update the on-device model (deduped) so Smart pre-fill keeps improving.
   learner.addExamples(rows);
   renderLearnPanel();
-  const s = learner.stats();
-  const acc = s.accuracy != null ? ` · ~${Math.round(s.accuracy * 100)}% accurate` : '';
-  flash(`✓ Trained on "${im.name}" (${labeler.points.length} marks). Model: ${s.images} images, ${s.examples} examples${acc}. Upload the next photo and keep going.`);
+
+  // AUTO-SAVE a STANDALONE training file for THIS image only — one file per click,
+  // each independent (values do NOT add up across images).
+  const data = labeler.getData();          // { type, image (with dataUrl), labels, counts }
+  data.rows = rows;                         // this image's feature examples only
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const base = (im.name || 'plate').replace(/\.[^.]+$/, '');
+  download(`wormtrace-train_${base}_${stamp}.json`, JSON.stringify(data));
+
+  const c = labeler.counts();
+  flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${c.large + c.juvenile} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
 }
 
 function renderLearnPanel() {

@@ -28,12 +28,25 @@ export class WormLearner {
     ];
   }
 
-  addExamples(rows) {                 // rows: [{f:[...], cat}]
-    if (!rows.length) return;
+  addExamples(rows) {                 // rows: [{f:[...], cat}] → returns # genuinely new
+    if (!rows.length) return 0;
     this.images++;
-    for (const r of rows) this.rows.push(r);
+    const seen = new Set(this.rows.map(r => this._rowKey(r)));
+    let added = 0;
+    for (const r of rows) {
+      const k = this._rowKey(r);
+      if (seen.has(k)) continue;      // skip exact duplicate (e.g. re-confirming same image)
+      seen.add(k); this.rows.push(r); added++;
+    }
     if (this.rows.length > MAX_ROWS) this.rows = this.rows.slice(-MAX_ROWS);
     this._fitNorm(); this._save();
+    return added;
+  }
+  _rowKey(r) { return r.f.map(x => Math.round(x * 1e5)).join(',') + '|' + r.cat; }
+  _dedupRows() {
+    const seen = new Set(), out = [];
+    for (const r of this.rows) { const k = this._rowKey(r); if (!seen.has(k)) { seen.add(k); out.push(r); } }
+    this.rows = out;
   }
 
   ready() { return this.rows.length >= 12; }
@@ -61,6 +74,7 @@ export class WormLearner {
   importMerge(obj) {
     if (obj.type !== 'wormtrace-model' || !Array.isArray(obj.rows)) throw new Error('Not a WormTrace model file.');
     this.rows.push(...obj.rows.filter(r => Array.isArray(r.f) && r.f.length === FEATS && r.cat));
+    this._dedupRows();                 // pooling models often overlaps — drop duplicates
     this.images += obj.images || 0;
     if (this.rows.length > MAX_ROWS) this.rows = this.rows.slice(-MAX_ROWS);
     this._fitNorm(); this._save();
@@ -95,5 +109,9 @@ export class WormLearner {
     return correct / idxs.length;
   }
   _save() { try { localStorage.setItem(KEY, JSON.stringify({ rows: this.rows, images: this.images })); } catch (e) {} }
-  _load() { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { this.rows = o.rows || []; this.images = o.images || 0; } } catch (e) {} this._fitNorm(); }
+  _load() {
+    try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o) { this.rows = o.rows || []; this.images = o.images || 0; } } catch (e) {}
+    const n0 = this.rows.length; this._dedupRows(); this._fitNorm();
+    if (this.rows.length < n0) this._save();   // persist the cleaned-up (deduped) model
+  }
 }
