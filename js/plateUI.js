@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=79';
-import { PlateCanvas }       from './PlateCanvas.js?v=79';
-import { showToast, showConfirm } from './Toast.js?v=79';
-import { showFeedback }      from './Feedback.js?v=79';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=96';
+import { PlateCanvas }       from './PlateCanvas.js?v=96';
+import { showToast, showConfirm } from './Toast.js?v=96';
+import { showFeedback }      from './Feedback.js?v=96';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=79';
+} from './LifeCycle.js?v=96';
 
 export const pt = new PlateTracker();
 
@@ -111,6 +111,21 @@ export function initPlateUI() {
     window._selectedPlateForTs = selectedPlateId;
     renderPlateList(); renderBinBadge(); renderPlateDetail();
     return { id: plate.id, worms: living, cohorts: stageCounts.length, startStage: dom };
+  };
+
+  // Bridge: create a plate from a Worm Collection worm. The strain MUST already be
+  // registered (built-in, or registerStrain'd by collectionApp before calling this).
+  // Refreshes the strain dropdown so a freshly-registered worm shows in the detail.
+  window.WormTraceAddPlateFromCollection = ({ strainId = 'N2', name, tempC = 20, binId = null } = {}) => {
+    if (typeof window._wtPopulateStrainSelects === 'function') window._wtPopulateStrainSelects();
+    const n = pt.getAll().length + 1;
+    const plate = pt.addPlate({ name: (name || `Plate ${n}`).slice(0, 40), strainId, tempC });
+    const bin = binId ?? (activeBinId !== 'all' ? activeBinId : null);
+    if (bin) pt.setPlateBin(plate.id, bin);
+    selectedPlateId = plate.id;
+    window._selectedPlateForTs = selectedPlateId;
+    renderPlateList(); renderBinBadge(); renderPlateDetail();
+    return { id: plate.id };
   };
 
   document.getElementById('plateStrainSelect').addEventListener('change', e => {
@@ -1588,24 +1603,7 @@ function openBinSimulator(binId) {
       kAge: Math.max(0.3, adultLifespanDays(p.strainId, p.tempC) / 20),  // Gompertz time-scale vs N2
     };
   });
-  // The survival curve is a pure strain+temperature lifespan property (assumes food
-  // always available & no reproduction), so plates of the SAME strain+temp draw the
-  // identical curve. Collapse to ONE line per strain+temp so the chart compares
-  // different worms instead of stacking redundant duplicates. (Per-plate cards & the
-  // dauer chart stay per-plate — those genuinely differ by food/population.)
-  const survSeries = (() => {
-    const groups = new Map();
-    for (const s of sims) {
-      const key = `${s.plate.strainId}|${s.plate.tempC}`;
-      (groups.get(key) ?? groups.set(key, []).get(key)).push(s);
-    }
-    return [...groups.values()].map(gp => {
-      const rep = gp.find(s => s.inoc) ?? gp[0];   // representative (prefer an inoculated plate)
-      const strain = (STRAINS[rep.plate.strainId]?.label ?? rep.plate.strainId).split('—')[0].trim();
-      return { ...rep, label: `${strain} ${rep.plate.tempC}°C`, count: gp.length };
-    });
-  })();
-  // Gompertz constants (N2 adult mortality, per day) — also used by the survival curve.
+  // Gompertz constants (N2 adult mortality, per day) — used to auto-fit the timeline horizon.
   const GA = 0.0016, GG = 0.23;
   const r1 = n => Math.round(n * 10) / 10;   // worm counts shown to 1 decimal place
   // Auto-fit the x-axis: run until the longest-lived strain's survival reaches ~2%,
@@ -1615,7 +1613,6 @@ function openBinSimulator(binId) {
   const tailDays = s => TAU2 * s.kAge + Math.max(0, (s.adultStartHrs - devNow(s)) / 24);
   const graphDays = Math.min(85, Math.max(20, Math.ceil(Math.max(...sims.map(tailDays)) / 10) * 10));
   const MAX_T = graphDays * 24;
-  const dStep = graphDays <= 45 ? 10 : 20;   // x-axis tick spacing (days)
 
   const stages = getStages('N2', 20);
   const nameOf  = id => (stages.find(s => s.id === id)?.name ?? id);
@@ -1715,12 +1712,6 @@ function openBinSimulator(binId) {
       </div>
 
       <div style="margin-bottom:6px">
-        ${sec('Survival curve — % alive over time (lifespan model)')}
-        <div style="font-size:11px;color:var(--muted);margin:0 0 5px;line-height:1.35">ℹ️ One line per strain + temperature (a lifespan property — plates of the same worm overlap). Assumes food is always available &amp; worms are not reproducing (standard lifespan-assay model). The per-plate cards &amp; dauer chart above remain food-limited.</div>
-        <div id="binSimSurvival" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
-      </div>
-
-      <div style="margin-bottom:6px">
         ${sec('Dauer — % of living worms in dauer (per plate, at current time)')}
         <div id="binSimDauer" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
@@ -1728,77 +1719,18 @@ function openBinSimulator(binId) {
   document.body.appendChild(overlay);
   const $ = id => document.getElementById(id);
 
-  // ── Survival curve geometry + data ───────────────────────────────────────────
-  // Survival = living (alive + dauer) ÷ (living + dead) × 100 at each time, sampled
-  // across the shared "from now" timeline. One polyline per plate; long-lived strains
-  // (fewer age-deaths) sit higher. A dashed marker tracks the scrub position.
-  // Kaplan–Meier publication style: white background, black axes, stepped lines,
-  // right-side legend. Palette chosen to read on white (mirrors typical KM figures).
+  // ── Dauer chart geometry ─────────────────────────────────────────────────────
+  // (The survival/lifespan curve moved to the Worm Collection tab.) SV + survY drive
+  // the dauer bar chart below; the palette gives each plate a distinct bar colour.
   const SURV_PALETTE = ['#16a34a', '#db2777', '#7c3aed', '#2563eb', '#6b7280', '#b91c1c', '#0891b2', '#ea580c', '#65a30d', '#9333ea'];
   const SV = { W: 520, H: 250, x0: 46, x1: 338, y0: 18, y1: 208, yMax: 105 };
-  const survX = t => SV.x0 + (Math.min(t, MAX_T) / MAX_T) * (SV.x1 - SV.x0);
   const survY = pct => SV.y0 + (1 - pct / SV.yMax) * (SV.y1 - SV.y0);
-  // Survival = a proper lifespan-assay aging curve: founders age and die per the
-  // strain's Gompertz hazard μ(τ)=(A/k)·e^((G/k)τ) (τ = days as adult), so deaths
-  // accrue gradually by daily probability rather than all at once. Assumes worms
-  // are maintained/fed (the standard survival-assay condition); the dashed dauer
-  // line below reflects the actual food/population dynamics. N2: A≈0.0016, G≈0.23/d.
-  const survAt = (s, t) => {
-    if (!s.inoc) return 100;
-    const adultDays = (devNow(s) + t - s.adultStartHrs) / 24;   // days into adulthood at scrub time t
-    if (adultDays <= 0) return 100;                              // not yet adult → full survival
-    const S = Math.exp(-(GA / GG) * (Math.exp((GG / s.kAge) * adultDays) - 1));
-    return 100 * S;
-  };
   const dauerAt = (s, t) => {   // % of living worms that are in dauer
     if (!s.inoc) return 0;
     const snap = timelineAt(s.snaps, s.start + t);
     if (!snap) return 0;
     const living = snap.alive + snap.dauer;
     return living > 0 ? (snap.dauer / living) * 100 : 0;
-  };
-  const stepPath = fn => {   // stepped polyline points for a value-function over time
-    let p = '', prev = null;
-    for (let t = 0; t <= MAX_T; t += 12) {
-      const X = survX(t), Y = survY(fn(t));
-      p += (prev === null ? '' : `${X.toFixed(1)},${prev.toFixed(1)} `) + `${X.toFixed(1)},${Y.toFixed(1)} `;
-      prev = Y;
-    }
-    return p.trim();
-  };
-  // Generic KM-style chart: one solid line per plate of valFn, axes, legend, marker.
-  function buildChart(containerId, valFn, markerId, yTitle) {
-    const A = '#111';
-    let g = `<rect x="0" y="0" width="${SV.W}" height="${SV.H}" fill="#ffffff"/>`;
-    for (const pct of [0, 25, 50, 75, 100]) {
-      const yy = survY(pct);
-      g += `<line x1="${SV.x0 - 4}" y1="${yy}" x2="${SV.x0}" y2="${yy}" stroke="${A}" stroke-width="1"/>` +
-        `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
-    }
-    for (let d = 0; d * 24 <= MAX_T; d += dStep) {
-      const xx = survX(d * 24);
-      g += `<line x1="${xx}" y1="${SV.y1}" x2="${xx}" y2="${SV.y1 + 4}" stroke="${A}" stroke-width="1"/>` +
-        `<text x="${xx}" y="${SV.y1 + 15}" font-size="9" fill="${A}" text-anchor="middle">${d}</text>`;
-    }
-    g += `<line x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
-      `<line x1="${SV.x0}" y1="${SV.y1}" x2="${SV.x1}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
-      `<text x="${(SV.x0 + SV.x1) / 2}" y="${SV.y1 + 32}" font-size="11" fill="${A}" text-anchor="middle">Survival time (days)</text>` +
-      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">${yTitle}</text>`;
-    let lines = '', legend = '';
-    survSeries.forEach((s, i) => {
-      const col = SURV_PALETTE[i % SURV_PALETTE.length];
-      lines += `<polyline points="${stepPath(t => valFn(s, t))}" fill="none" stroke="${col}" stroke-width="1.8"/>`;
-      const ly = SV.y0 + 8 + i * 15;
-      const tag = s.count > 1 ? `${s.label} ×${s.count}` : s.label;
-      legend += `<line x1="${SV.x1 + 14}" y1="${ly}" x2="${SV.x1 + 32}" y2="${ly}" stroke="${col}" stroke-width="2.6"/>` +
-        `<text x="${SV.x1 + 37}" y="${ly + 3}" font-size="9" fill="${A}">${escHtml(tag).slice(0, 24)}</text>`;
-    });
-    const marker = `<line id="${markerId}" x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="#888" stroke-width="1" stroke-dasharray="3 2"/>`;
-    $(containerId).innerHTML =
-      `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block;border-radius:6px">${g}${lines}${legend}${marker}</svg>`;
-  }
-  const buildCharts = () => {
-    buildChart('binSimSurvival', survAt, 'binSimSurvMarker', 'Percent survival');
   };
   // Dauer = a BAR chart (one bar per plate) of the % in dauer AT the scrub time T;
   // redrawn each frame so the bars rise/fall as you scrub. Pairs with the survival line.
@@ -1883,9 +1815,7 @@ function openBinSimulator(binId) {
     $('binSimOutliersWrap').style.display = al.length ? 'block' : 'none';
     if (al.length) $('binSimOutliers').innerHTML = al.map(t => `<div style="font-size:11px;color:#fcd34d;line-height:1.5;margin-bottom:3px">${t}</div>`).join('');
 
-    // Move the survival-curve "now" marker; redraw the dauer bars at this time
-    const mk = $('binSimSurvMarker');
-    if (mk) { const xx = survX(T).toFixed(1); mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
+    // Redraw the dauer bars at this scrub time
     renderDauerBars(T);
   }
 
@@ -1905,7 +1835,6 @@ function openBinSimulator(binId) {
   $('binSimReset').onclick = () => { stop(); simT = 0; $('binSimScrub').value = 0; renderAt(0); };
   $('btnCloseBinSim').onclick = () => { stop(); overlay.remove(); };
 
-  buildCharts();   // static per-plate curves (markers track scrub in renderAt)
   renderAt(0);
 }
 

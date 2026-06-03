@@ -66,7 +66,7 @@ function _applyLayout() {
   setTimeout(_showSwipeHint, 1500);
 
   // CRITICAL: force tab views to flex-column so panels fill height and scroll
-  ['motionTab','plateTab','countTab'].forEach(id => {
+  ['motionTab','plateTab','countTab','collectionTab','pathwaysTab'].forEach(id => {
     const tv = document.getElementById(id);
     if (!tv) return;
     tv.style.flexDirection    = 'column';

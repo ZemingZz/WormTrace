@@ -308,6 +308,38 @@ export const STRAINS = {
 };
 
 /**
+ * Register a worm from the Worm Collection as a usable strain so plates can run it.
+ * Idempotent (re-registering overwrites). Imported worms carry their own
+ * `lifespanDays20C` (honoured by adultLifespanHours below) and a `globalScale`
+ * derived from their egg→adult growth time. Marked `_imported` so the catalog UI
+ * can tell them apart from the built-in strains.
+ */
+export function registerStrain(rec) {
+  if (!rec || !rec.id) return null;
+  const dafClass = rec.dafClass || 'wild';
+  STRAINS[rec.id] = {
+    id: rec.id,
+    label: rec.label || rec.id,
+    color: rec.color || '#64748b',
+    stageScale: {},
+    globalScale: rec.globalScale || 1.0,    // development speed vs N2 (1.0 = N2 timing)
+    tempScaleOverride: {},
+    dafClass,
+    dauerTemps:        dafClass === 'daf-c' ? [25] : [],
+    dauerTempPartial:  dafClass === 'daf-c' ? [20] : [],
+    maxEggs: rec.maxEggs ?? 300,
+    lifespan20C: rec.lifespanText || (rec.lifespanDays20C ? `~${rec.lifespanDays20C} days` : 'Unknown'),
+    lifespanDays20C: rec.lifespanDays20C ?? 20,   // read by adultLifespanHours()
+    notes: rec.notes || '',
+    phenotype: rec.phenotype || '',
+    dauerNotes: '',
+    refs: rec.refs || '',
+    _imported: true,
+  };
+  return STRAINS[rec.id];
+}
+
+/**
  * Mean ADULT lifespan in days at 20 °C per strain (numeric companion to the
  * human-readable `lifespan20C` strings). Used to drive death in the growth
  * simulation so long-lived strains (daf-2, age-1, eat-2) persist realistically.
@@ -327,7 +359,7 @@ const LIFESPAN_TEMP_FACTOR = { 10: 2.0, 15: 1.5, 20: 1.0, 25: 0.65 };
 
 /** Mean adult lifespan in HOURS for a strain at a temperature (post-adulthood). */
 export function adultLifespanHours(strainId = 'N2', tempC = 20) {
-  const days = ADULT_LIFESPAN_DAYS_20C[strainId] ?? 20;
+  const days = ADULT_LIFESPAN_DAYS_20C[strainId] ?? STRAINS[strainId]?.lifespanDays20C ?? 20;
   const f = LIFESPAN_TEMP_FACTOR[tempC] ?? (tempC <= 12 ? 2.0 : tempC <= 17 ? 1.5 : tempC <= 22 ? 1.0 : 0.65);
   return days * 24 * f;
 }
