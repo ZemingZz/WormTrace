@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=76';
-import { PlateCanvas }       from './PlateCanvas.js?v=76';
-import { showToast, showConfirm } from './Toast.js?v=76';
-import { showFeedback }      from './Feedback.js?v=76';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=77';
+import { PlateCanvas }       from './PlateCanvas.js?v=77';
+import { showToast, showConfirm } from './Toast.js?v=77';
+import { showFeedback }      from './Feedback.js?v=77';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=76';
+} from './LifeCycle.js?v=77';
 
 export const pt = new PlateTracker();
 
@@ -1699,6 +1699,7 @@ function openBinSimulator(binId) {
 
       <div style="margin-bottom:6px">
         ${sec('Survival curve — % alive over time (lifespan model)')}
+        <div style="font-size:11px;color:var(--muted);margin:0 0 5px;line-height:1.35">ℹ️ Assumes food is always available &amp; worms are not reproducing (standard lifespan-assay model). The per-plate cards &amp; dauer chart above remain food-limited.</div>
         <div id="binSimSurvival" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
 
