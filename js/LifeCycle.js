@@ -1,13 +1,16 @@
 /**
  * LifeCycle.js — C. elegans developmental stage data for multiple strains.
  *
- * Base N2 stage durations at 20°C (hours from egg deposition):
- *   Embryo hatch: 7.3h  (Corsi et al. 2015)
- *   L1: 14.95h, L2: 9.01h, L3: 7.37h, L4: 9.85h (Corsi et al. 2015)
- *   Young adult: 11h, Reproductive adult: 120h reproductive span
+ * Base N2 stage durations at 20°C (hours from egg deposition). CORRECTED 2026-06-03:
+ * the previous values (egg 7.3h, larval ~41h total) were ~25°C-magnitude mislabeled
+ * as 20°C; true 20°C development is slower.
+ *   Embryo (laying→hatch): ~14h at 20°C  (WormBook primer NBK299460; Byerly et al. 1976)
+ *   L1: 16h, L2: 12h, L3: 12h, L4: 12h   (WormBook primer: "L1 ~16h, the others ~12h")
+ *   Young adult: 12h, Reproductive adult: 120h reproductive span
+ *   → egg → reproductive adult ≈ 78h (~3.3 days at 20°C); proportionally faster at 25°C.
  *
- * Temperature scaling uses stage-specific Q10 values:
- *   Q10 ≈ 2.8 embryonic, ≈ 2.5 larval (Boyle et al. 2022, PMC9047341)
+ * Temperature scaling uses Q10 ≈ 2.1 (development ~2.1× faster per +10°C across 15–25°C;
+ *   Olmedo et al. 2022 PMC9047341 Arrhenius data recomputed; classic ~2.1× figure).
  *
  * Strain-specific modifications:
  *   daf-2(e1370): L2 stage >2× prolonged; all stages ~1.5–2× N2 at 20°C;
@@ -18,8 +21,8 @@
  *   age-1(hx546): NO developmental timing difference from N2 (Friedman & Johnson 1988)
  */
 
-const Q10_EMBRYO = 2.8;
-const Q10_LARVAL = 2.5;
+const Q10_EMBRYO = 2.1;
+const Q10_LARVAL = 2.1;
 
 // ── Base stage definitions at 20°C ───────────────────────────────────────────
 // Stage icons chosen to visually represent each C. elegans developmental stage
@@ -27,42 +30,42 @@ const Q10_LARVAL = 2.5;
 const BASE_STAGES = [
   {
     id: 'egg',        name: 'Egg / Embryo',        icon: '🥚', color: '#fbbf24',
-    durationAt20: 7.3,  q10: Q10_EMBRYO,
+    durationAt20: 14.0,  q10: Q10_EMBRYO,
     description: 'Embryogenesis. 3-fold elongation stage visible. Egg is transparent to opaque.',
     visibleSigns: 'Egg cells visible on plate; 2-cell → comma → 3-fold progression.',
     size: 'Egg ~50×30 μm',
   },
   {
     id: 'l1',         name: 'L1 Larva',             icon: '🌱', color: '#34d399',
-    durationAt20: 14.95, q10: Q10_LARVAL,
+    durationAt20: 16.0, q10: Q10_LARVAL,
     description: 'First larval stage. Worm begins feeding on bacteria. Arrests without food (L1 arrest).',
     visibleSigns: 'Small, slender worms ~250 μm. Active movement, feeding on OP50.',
     size: '~250 μm length',
   },
   {
     id: 'l2',         name: 'L2 Larva',             icon: '🐣', color: '#60a5fa',
-    durationAt20: 9.01,  q10: Q10_LARVAL,
+    durationAt20: 12.0,  q10: Q10_LARVAL,
     description: 'Second larval stage. Dauer decision made at L2d checkpoint. Continued growth.',
     visibleSigns: 'Worms ~360 μm. Slightly larger than L1.',
     size: '~360 μm length',
   },
   {
     id: 'l3',         name: 'L3 Larva',             icon: '🐛', color: '#a78bfa',
-    durationAt20: 7.37,  q10: Q10_LARVAL,
+    durationAt20: 12.0,  q10: Q10_LARVAL,
     description: 'Third larval stage. Gonad arms elongate. Vulva precursor cells divide.',
     visibleSigns: 'Worms ~490 μm. Gonad visible as a small white region.',
     size: '~490 μm length',
   },
   {
     id: 'l4',         name: 'L4 Larva',             icon: '🪲', color: '#f472b6',
-    durationAt20: 9.85,  q10: Q10_LARVAL,
+    durationAt20: 12.0,  q10: Q10_LARVAL,
     description: 'Fourth larval stage. Vulva forms (crescent-shaped). Gonad arms fully elongate.',
     visibleSigns: 'Worms ~630 μm. Clear crescent (half-moon) shape on ventral side = vulva forming.',
     size: '~630 μm length',
   },
   {
     id: 'young_adult', name: 'Young Adult',          icon: '🪱', color: '#00d4aa',
-    durationAt20: 11.0,  q10: Q10_LARVAL,
+    durationAt20: 12.0,  q10: Q10_LARVAL,
     description: 'Adult body size reached. Vulva complete. Not yet laying eggs.',
     visibleSigns: 'Full-size ~1 mm. Visible uterus and vulval opening. No eggs inside body yet.',
     size: '~1,000 μm length',
@@ -134,7 +137,7 @@ export const STRAINS = {
     label: 'daf-2 (e1370) — Insulin/IGF-1 receptor',
     color: '#7c3aed',
     // L2 stage is most dramatically extended (>2×); other stages ~1.3–1.5×
-    stageScale: { egg: 1.1, l1: 1.3, l2: 2.2, l3: 1.4, l4: 1.5, young_adult: 1.4, adult: 2.0 },
+    stageScale: { egg: 1.1, l1: 1.3, l2: 2.2, l3: 1.4, l4: 1.5, young_adult: 1.3, adult: 1.5 },
     globalScale: 1.0,       // per-stage overrides above take precedence
     tempScaleOverride: {},
     dafClass: 'daf-c',
@@ -143,7 +146,7 @@ export const STRAINS = {
     maxEggs: 200,           // reduced progeny
     lifespan20C: '~40–50 days (~2× N2)',
     notes: 'Insulin/IGF-1 receptor (ortholog of human INSR). Extended lifespan. Dauer-constitutive.',
-    phenotype: 'Normal morphology. ~2× lifespan. ~2× slower development. ~100% dauer at 25 °C.',
+    phenotype: 'Normal morphology. ~2× lifespan. ~1.5× slower development (L2 most extended). ~100% dauer at 25 °C.',
     dauerNotes: 'Temperature-sensitive Daf-c: ~100% dauer at 25 °C; reduced at 20 °C ' +
       '(~15% commonly cited for e1370, but allele/assay-dependent — ~1% for some ts alleles); ' +
       'maintained at 15 °C. NOTE: strong/null daf-2 (and age-1/daf-23) alleles arrest as dauer ' +
