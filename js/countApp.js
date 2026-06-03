@@ -3,9 +3,9 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=51';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=51';
-import { WormLearner } from './WormLearner.js?v=51';
+import { WormCounter } from './WormCounter.js?v=64';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=64';
+import { WormLearner } from './WormLearner.js?v=64';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -18,7 +18,8 @@ let selected = -1;
 // Permissive detector settings used to gather CANDIDATE blobs for training/smart
 // pre-fill — deliberately loose so eggs/debris are captured as negatives.
 const TRAIN_OPTS = { sensitivity: 16, minArea: 12, maxArea: 12000, minAspect: 1.0, blurRadius: 16 };
-const WORM_CATS = ['large', 'juvenile', 'baby'];   // what counts as a worm to mark
+const WORM_CATS = ['l1', 'l2', 'l3', 'l4', 'adult'];   // living-worm stages (egg/dead aren't "worms to count")
+const wormTotal = c => WORM_CATS.reduce((s, k) => s + (c[k] || 0), 0);   // living worms in a counts object
 
 function detectorOpts() {
   return { sensitivity: +$('countSens').value, minArea: +$('countMin').value, maxArea: +$('countMax').value };
@@ -52,6 +53,9 @@ function initCountTab() {
   $('btnLabelImport')?.addEventListener('click', () => $('labelImportInput').click());
   $('labelImportInput')?.addEventListener('change', onImport);
 
+  // ── Send this photo's count into the Plate Tracker ──
+  $('btnCountToPlate')?.addEventListener('click', addAsPlate);
+
   // ── In-app learning ──
   $('btnConfirmTrain')?.addEventListener('click', confirmTrain);
   $('btnModelExport')?.addEventListener('click', exportModel);
@@ -76,8 +80,8 @@ function initCountTab() {
 // ── Category palette ────────────────────────────────────────────────────────
 function buildPalette() {
   const el = $('catPalette');
-  el.innerHTML = Object.entries(LABEL_CATS).map(([k, v], i) =>
-    `<button class="cat-chip${i === 0 ? ' active' : ''}" data-cat="${k}">
+  el.innerHTML = Object.entries(LABEL_CATS).map(([k, v]) =>
+    `<button class="cat-chip${k === labeler.cat ? ' active' : ''}" data-cat="${k}">
        <span class="swatch" style="background:${v.color}"></span>${v.label}</button>`).join('');
   el.querySelectorAll('.cat-chip').forEach(b => b.addEventListener('click', () => {
     el.querySelectorAll('.cat-chip').forEach(x => x.classList.remove('active'));
@@ -153,10 +157,10 @@ function showEmpty() {
 function renderCounts() {
   if (selected >= 0) renderThumbs();
   const c = labeler.counts();
-  const order = ['large', 'juvenile', 'baby', 'edge', 'dead', 'egg'];
+  const order = ['egg', 'l1', 'l2', 'l3', 'l4', 'adult', 'dead'];
   const rows = order.filter(k => c[k] > 0)
     .map(k => `<span style="color:${LABEL_CATS[k].color}">●</span> ${LABEL_CATS[k].label}: <b>${c[k]}</b>`);
-  const total = c.large + c.juvenile;   // "worms to count" = large + juvenile
+  const total = WORM_CATS.reduce((s, k) => s + (c[k] || 0), 0);   // living worms = L1..Adult
   $('labelCounts').innerHTML =
     `<div style="font-weight:800;color:#00d4aa">${total} worms</div>` +
     (rows.length ? rows.join('<br>') : '<span style="color:#94a3b8">tap to mark</span>');
@@ -176,18 +180,31 @@ function prefill() {
     if (smart) {
       // Model is reliable for WORM-vs-not (egg/debris), but NOT for size class:
       // features are size-normalized per image, so baby/juvenile/large aren't
-      // separable. Use it only to keep/reject worms; mark all as generic 'large'
-      // and let the user re-tag babies/juveniles by hand.
+      // separable. Use it only to keep/reject worms; mark all as generic 'l4'
+      // and let the user re-tag by stage (L1–L4 / Adult) by hand.
       const pred = learner.predict(learner.featureVec(b, res));
       if (!WORM_CATS.includes(pred.cat)) { rejected++; continue; }   // model says egg/debris
     }
-    labeler.points.push({ x, y, cat: 'large' });
+    labeler.points.push({ x, y, cat: 'l4' });
     added++;
   }
   labeler.render(); labeler.onChange?.(labeler.counts());
   flash(smart
-    ? `🧠 Learned model added ${added} worms (skipped ${rejected} as egg/debris). All marked as worms — re-tag any babies/juveniles, then Confirm & Train.`
-    : `Auto pre-fill added ${added} marks (raw detector). Mark missed worms, then Confirm & Train to teach the model.`);
+    ? `🧠 Learned model added ${added} worms (skipped ${rejected} as egg/debris). All marked L4 — re-tag by stage (L1–L4 / Adult), then Confirm & Train.`
+    : `Auto pre-fill added ${added} marks (raw detector). Mark missed worms by stage, then Confirm & Train to teach the model.`);
+}
+
+// ── Add as Plate — create a Plate Tracker plate from this photo's count ──────
+function addAsPlate() {
+  if (selected < 0) { flash('Upload and mark a photo first.'); return; }
+  const c = labeler.counts();
+  const marked = ['egg', 'l1', 'l2', 'l3', 'l4', 'adult'].reduce((s, k) => s + (c[k] || 0), 0);
+  if (marked === 0) { flash('No worms/eggs marked yet — tap to mark (or ✨ pre-fill), then try again.'); return; }
+  if (typeof window.WormTraceAddPlateFromCounter !== 'function') { flash('Plate Tracker isn’t ready — open the Plate Tracker tab once, then retry.'); return; }
+  const im = images[selected];
+  const res = window.WormTraceAddPlateFromCounter({ counts: c, imageDataUrl: im.thumbUrl, sourceName: im.name });
+  document.querySelector('[data-tab="plateTab"]')?.click();   // jump to the Plate Tracker
+  flash(`🧫 Created a plate — ${res.worms} worm${res.worms !== 1 ? 's' : ''} across ${res.cohorts} stage${res.cohorts !== 1 ? 's' : ''} (dominant ${res.startStage.toUpperCase()}), one cohort per stage. Inoculated at N2/20°C — change strain/temp on the plate if needed.`);
 }
 
 // ── Confirm & Train — commit this image's labels into the learner ────────────
@@ -215,7 +232,7 @@ function confirmTrain() {
   download(`wormtrace-train_${base}_${stamp}.json`, JSON.stringify(data));
 
   const c = labeler.counts();
-  flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${c.large + c.juvenile} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
+  flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${wormTotal(c)} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
 }
 
 function renderLearnPanel() {
@@ -262,7 +279,7 @@ function exportTraining() {
   const base = (images[selected].name || 'plate').replace(/\.[^.]+$/, '');
   download(`wormtrace-train_${base}_${stamp}.json`, JSON.stringify(data));
   const c = data.counts;
-  flash(`Exported ${data.labels.length} labels (${c.large + c.juvenile} worms) + image. Send this .json back as training material.`);
+  flash(`Exported ${data.labels.length} labels (${wormTotal(c)} worms) + image. Send this .json back as training material.`);
 }
 
 function onImport(e) {

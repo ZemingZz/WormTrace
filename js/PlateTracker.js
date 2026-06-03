@@ -3,10 +3,11 @@
  * egg count tracking, multi-strain support, biohazard bin, and Excel export.
  */
 
-import { cumulativeFeedHours } from './LifeCycle.js?v=51';
+import { cumulativeFeedHours } from './LifeCycle.js?v=64';
 
 const STORE_KEY = 'wormtrace_plates_v2';
 const BIN_KEY   = 'wormtrace_biohazard_bin';
+const BINS_KEY  = 'wormtrace_bins';            // user-created groups (NOT the biohazard bin)
 
 // Days after which a plate is assumed contaminated / past usable life.
 export const MAX_PLATE_DAYS = 28;
@@ -15,6 +16,7 @@ export class PlateTracker {
   constructor() {
     this._plates = this._load(STORE_KEY);
     this._bin    = this._load(BIN_KEY);
+    this._bins   = this._load(BINS_KEY);   // [{id, name, createdAt}]
   }
 
   // ── Plate CRUD ─────────────────────────────────────────────────────────────
@@ -23,6 +25,7 @@ export class PlateTracker {
     const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const plate = {
       id, name, strainId, tempC, notes,
+      binId: null,              // user group this plate belongs to (null = Unfiled)
       createdAt: Date.now(),
       inoculatedAt: null,       // actual wall-clock time of inoculation
       stageStartOffset: 0,      // extra hours to add (from starting stage selection)
@@ -251,6 +254,48 @@ export class PlateTracker {
   getBin()      { return [...this._bin]; }
   getBinCount() { return this._bin.length; }
 
+  // ── Bins (user-created groups of plates) ─────────────────────────────────────
+
+  getBins() { return [...this._bins]; }
+
+  addBin(name = 'New Bin') {
+    const bin = { id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, name, createdAt: Date.now() };
+    this._bins.push(bin);
+    this._persistBins();
+    return bin;
+  }
+
+  renameBin(id, name) {
+    const b = this._bins.find(x => x.id === id);
+    if (!b) return false;
+    b.name = name;
+    this._persistBins();
+    return true;
+  }
+
+  /** Delete a bin; its plates fall back to Unfiled (binId = null). */
+  deleteBin(id) {
+    this._bins = this._bins.filter(b => b.id !== id);
+    for (const p of this._plates) if (p.binId === id) p.binId = null;
+    this._persistBins();
+    this._persist();
+  }
+
+  setPlateBin(plateId, binId) {
+    const p = this._find(plateId);
+    if (!p) return false;
+    p.binId = binId ?? null;
+    this._persist();
+    return true;
+  }
+
+  /** Active plates in a bin (binId === null → the Unfiled group). */
+  getPlatesInBin(binId) {
+    return this._plates.filter(p => (p.binId ?? null) === (binId ?? null));
+  }
+
+  binPlateCount(binId) { return this.getPlatesInBin(binId).length; }
+
   // ── Egg counts ─────────────────────────────────────────────────────────────
 
   addEggCount(plateId, count) {
@@ -440,5 +485,9 @@ export class PlateTracker {
           if (obs.imageDataUrl?.length > 1000) obs.imageDataUrl = null;
       try { localStorage.setItem(BIN_KEY, JSON.stringify(this._bin)); } catch {}
     }
+  }
+
+  _persistBins() {
+    try { localStorage.setItem(BINS_KEY, JSON.stringify(this._bins)); } catch {}
   }
 }

@@ -177,6 +177,12 @@
     <!-- Plate list panel -->
     <div class="panel" id="platePanelList" style="position:relative">
       <div class="panel-title">Plates</div>
+
+      <!-- Bin (group) selector — rendered by renderBinBar() -->
+      <div id="binBar" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:6;background:var(--panel);padding:6px 0;margin-bottom:6px;border-bottom:1px solid var(--border)"></div>
+      <!-- Bin aggregate status line — rendered by renderBinStatusBar() -->
+      <div id="binStatus" style="display:none;font-size:10px;color:#94a3b8;margin:-4px 0 8px;padding:5px 8px;background:#0f172a;border:1px solid var(--border);border-radius:8px"></div>
+
       <button class="btn-primary" id="btnAddPlate">+ Add Plate</button>
 
       <!-- Multi-select action bar -->
@@ -184,6 +190,7 @@
         <span id="multiSelectCount" style="font-size:11px;font-weight:600;flex:1">0 selected</span>
         <button class="btn-secondary btn-sm" id="btnSelectAll"    style="width:auto">All</button>
         <button class="btn-secondary btn-sm" id="btnDeselectAll"  style="width:auto">Clear</button>
+        <select id="moveToBinSelect" class="btn-secondary btn-sm" style="width:auto"></select>
         <button class="btn-primary   btn-sm" id="btnExportSelected" style="width:auto">📊 Export</button>
       </div>
 
@@ -303,7 +310,7 @@
           <!-- ── Food (OP50) ── -->
           <div class="ctrl-group">
             <div class="ctrl-label">OP50 food (bacterial lawn)</div>
-            <input type="range" id="foodVolumeSlider" min="0.05" max="0.35" step="0.05" value="0.2">
+            <input type="range" id="foodVolumeSlider" min="0.05" max="0.5" step="0.05" value="0.2">
             <div class="row"><label>Volume</label><span id="foodVolumeVal">0.20 ml</span></div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px">
               60 mm plate: 0.05 ml ≈ 50 µL drop lawn · 0.20 ml ≈ fully spread lawn.
@@ -407,8 +414,10 @@
             </div>
           </div>
 
-          <!-- ── Notes ── -->
-          <div class="ctrl-label">Lab Notes</div>
+          <!-- ── Notes, Observations & Photos (collapsible) ── -->
+          <details style="margin-top:4px">
+            <summary style="font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:5px 0">📝 Notes, observations &amp; photos</summary>
+          <div class="ctrl-label" style="margin-top:6px">Lab Notes</div>
           <textarea id="plateNotesInput" placeholder="Notes about this plate…"></textarea>
 
           <!-- ── Observations & Photos ── -->
@@ -435,6 +444,7 @@
             <button class="btn-primary" id="btnAddObservation">+ Log Observation</button>
           </div>
           <div id="obsList"></div>
+          </details>
 
           <!-- ── Save as Excel ── -->
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
@@ -543,15 +553,15 @@
       </style>
 
       <div class="panel-title">🔢 Worm Counter &amp; Labeler</div>
-      <details open style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:8px 11px">
+      <details style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:8px 11px">
         <summary style="font-size:12px;font-weight:700;color:var(--accent);cursor:pointer">📖 How to train the counter — tap to show/hide</summary>
         <ol style="font-size:11px;color:#cbd5e1;line-height:1.6;margin:8px 0 6px;padding-left:18px">
           <li><b>Upload</b> a clear, top-down plate photo. <b>Worm-packed photos help most</b> — debris-only ones don't.</li>
-          <li>Tap <b>✨ Auto pre-fill</b> — it finds the worms and marks them (all as “Large”).</li>
+          <li>Tap <b>✨ Auto pre-fill</b> — it finds the worms and marks them (all as <b>L4</b>).</li>
           <li><b>Zoom in</b> (pinch, or the <b>+</b> button) and clean it up:
             <ul style="margin:3px 0;padding-left:16px">
               <li>Tap an <b>unmarked worm</b> to add it · tap a dot again to <b>remove</b> a wrong one.</li>
-              <li>For small worms: tap <span style="color:#b446dc;font-weight:700">● Baby</span> or <span style="color:#ff8c00;font-weight:700">● Juvenile</span> in the palette first, then tap them.</li>
+              <li>For smaller worms: tap <span style="color:#34d399;font-weight:700">● L1</span> or <span style="color:#60a5fa;font-weight:700">● L2</span> (or any stage) in the palette first, then tap them.</li>
               <li>Use <b>🧽 Erase</b> mode to clear several wrong dots quickly.</li>
             </ul>
           </li>
@@ -559,7 +569,7 @@
           <li><b>Load the next photo</b> and repeat. The model gets better each time.</li>
         </ol>
         <div style="font-size:10px;color:var(--muted);line-height:1.55;border-top:1px solid var(--border);padding-top:6px">
-          <b>Tips:</b> &nbsp;• Use a <b>new, different photo every time</b> — re-marking the same one adds nothing (it gets de-duplicated). &nbsp;• The app reliably tells <b>worm vs. debris</b>, but <b>you assign the sizes</b> (baby/juvenile/adult). &nbsp;• Collect <b>more juveniles &amp; babies</b> — those help most right now. &nbsp;• Send your saved <code>.json</code> files back to pool everyone's training data.
+          <b>Tips:</b> &nbsp;• Use a <b>new, different photo every time</b> — re-marking the same one adds nothing (it gets de-duplicated). &nbsp;• The app reliably tells <b>worm vs. debris</b>, but <b>you assign each worm's stage</b> (L1–L4 / Adult). &nbsp;• Collect <b>more young stages (L1–L2)</b> — those help most right now. &nbsp;• Send your saved <code>.json</code> files back to pool everyone's training data.
         </div>
       </details>
 
@@ -621,11 +631,16 @@
         <!-- confirm & train -->
         <button class="btn-primary" id="btnConfirmTrain" style="background:#15803d">✓ Confirm &amp; train — saves this image as a file</button>
 
+        <!-- create a Plate Tracker plate from this photo's count -->
+        <button class="btn-primary" id="btnCountToPlate" style="background:#0d6efd">🧫 Add as plate → Plate Tracker</button>
+
         <!-- learning panel -->
         <div class="ctrl-group" style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:10px;gap:8px;display:flex;flex-direction:column">
           <div class="ctrl-label">🧠 In-app learning</div>
           <div id="learnStats" style="font-size:11px;line-height:1.6"></div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <details>
+            <summary style="font-size:11px;font-weight:700;color:var(--muted);cursor:pointer">⚙ Model &amp; export (advanced)</summary>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
             <button class="btn-secondary btn-sm" id="btnModelExport" style="width:auto">⬇ Export model</button>
             <button class="btn-secondary btn-sm" id="btnModelImport" style="width:auto">⬆ Merge model</button>
             <button class="btn-secondary btn-sm" id="btnModelReset" style="width:auto">Reset</button>
@@ -635,10 +650,10 @@
             The model learns on this device and gets better each time you Confirm &amp; train.
             “Export model” shares it (pool with other users / send for offline training).
           </div>
+            <button class="btn-secondary btn-sm" id="btnLabelExport" style="width:auto;margin-top:6px">💾 Export image + labels (.json)</button>
+          </details>
         </div>
 
-        <!-- export this image's labels (for offline model training) -->
-        <button class="btn-secondary btn-sm" id="btnLabelExport">💾 Export this image + labels (.json)</button>
         <div id="countSaveMsg" style="font-size:10px;color:var(--muted);line-height:1.4"></div>
       </div>
 
@@ -750,11 +765,11 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/app.js?v=51"></script>
-<script type="module" src="js/plateApp.js?v=51"></script>
-<script type="module" src="js/countApp.js?v=51"></script>
+<script type="module" src="js/app.js?v=64"></script>
+<script type="module" src="js/plateApp.js?v=64"></script>
+<script type="module" src="js/countApp.js?v=64"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=51';
+  import { initMobile } from './js/mobile.js?v=64';
   initMobile();
 </script>
 </body>

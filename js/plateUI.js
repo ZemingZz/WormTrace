@@ -3,20 +3,22 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=51';
-import { PlateCanvas }       from './PlateCanvas.js?v=51';
-import { showToast, showConfirm } from './Toast.js?v=51';
-import { showFeedback }      from './Feedback.js?v=51';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=64';
+import { PlateCanvas }       from './PlateCanvas.js?v=64';
+import { showToast, showConfirm } from './Toast.js?v=64';
+import { showFeedback }      from './Feedback.js?v=64';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER,
-} from './LifeCycle.js?v=51';
+} from './LifeCycle.js?v=64';
 
 export const pt = new PlateTracker();
 
 let selectedPlateId      = null;
 let _pendingImageDataUrl = null;
 let _canvas              = null;
+let activeBinId          = 'all';   // 'all' = every plate; otherwise a bin id
+let _dragPlateIds        = null;    // plate ids currently being dragged onto a bin
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 export function initPlateUI() {
@@ -49,10 +51,67 @@ export function initPlateUI() {
   document.getElementById('btnAddPlate').addEventListener('click', () => {
     const count = pt.getAll().length + 1;
     const plate = pt.addPlate({ name: `Plate ${count}`, strainId: 'N2', tempC: 20 });
+    if (activeBinId !== 'all') pt.setPlateBin(plate.id, activeBinId);   // add into the active bin
     selectedPlateId = plate.id;
     window._selectedPlateForTs = selectedPlateId;
     renderPlateList(); renderBinBadge(); renderPlateDetail();
   });
+
+  // ── Move-to-bin (multi-select) ───────────────────────────────────────────────
+  document.getElementById('moveToBinSelect')?.addEventListener('change', async e => {
+    const val = e.target.value; e.target.value = '';
+    const ids = window._getSelectedIds?.() || [];
+    if (!val || !ids.length) return;
+    let binId = val === '__none__' ? null : val;
+    if (val === '__new__') {
+      const name = await _textPrompt('New bin name', `Bin ${pt.getBins().length + 1}`);
+      if (name === null) return;
+      binId = pt.addBin(name.trim() || `Bin ${pt.getBins().length + 1}`).id;
+    }
+    for (const id of ids) pt.setPlateBin(id, binId);
+    window._clearSelection?.();
+    renderBinBar(); renderPlateList();
+  });
+
+  // ── Bridge: build a plate from a Worm Counter photo (called by countApp.js) ──
+  // The labels ARE life-stages now, so each labelled stage becomes its own cohort
+  // (one group of worms per stage) on the plate, preserving exactly what was marked.
+  // The plate is auto-inoculated at the dominant stage so the cohorts run immediately
+  // and the chosen stage persists (defaults to N2/20 °C — change after if needed).
+  window.WormTraceAddPlateFromCounter = ({ counts = {}, imageDataUrl, sourceName, binId = null } = {}) => {
+    const STAGE_KEYS = ['egg', 'l1', 'l2', 'l3', 'l4', 'adult'];   // dead → note only
+    const stageCounts = STAGE_KEYS.map(id => ({ id, count: counts[id] || 0 })).filter(s => s.count > 0);
+    const living = ['l1', 'l2', 'l3', 'l4', 'adult'].reduce((s, k) => s + (counts[k] || 0), 0);
+    const n = pt.getAll().length + 1;
+    const name = sourceName ? sourceName.replace(/\.[^.]+$/, '').slice(0, 40) : `Plate ${n}`;
+    const plate = pt.addPlate({ name, strainId: 'N2', tempC: 20 });
+    const bin = binId ?? (activeBinId !== 'all' ? activeBinId : null);
+    if (bin) pt.setPlateBin(plate.id, bin);   // drop into the active bin
+    const stages = getStages('N2', 20);
+    const startHr = id => (stages.find(s => s.id === id) || { start: 0 }).start;
+    // Dominant labelled stage = the plate's headline starting stage.
+    const dom = stageCounts.slice().sort((a, b) => b.count - a.count)[0]?.id || 'egg';
+    if (stageCounts.length) {
+      // Inoculate at the dominant stage; its count becomes the base cohort
+      // (materialised lazily by _ensureCohorts), then add a cohort per other stage.
+      const domCount = counts[dom] || 0;
+      pt.inoculate(plate.id, dom, startHr(dom));
+      pt.update(plate.id, { wormCount: domCount });
+      for (const s of stageCounts) if (s.id !== dom) pt.addCohort(plate.id, s.count, s.id, startHr(s.id));
+    } else {
+      pt.update(plate.id, { startingStageId: 'egg' });
+    }
+    const breakdown = STAGE_KEYS.filter(k => counts[k]).map(k => `${k.toUpperCase()} ${counts[k]}`)
+      .concat(counts.dead ? [`dead ${counts.dead}`] : []).join(', ');
+    pt.update(plate.id, { startingStageId: dom, notes: `From Worm Counter photo — ${breakdown || 'no marks'}` });
+    // Attach the photo as an observation. NO stageId — that would set stageOverride
+    // and pin the displayed stage, freezing the timeline.
+    if (imageDataUrl) pt.addObservation(plate.id, { note: `Worm Counter source photo — ${breakdown}`, imageDataUrl });
+    selectedPlateId = plate.id;
+    window._selectedPlateForTs = selectedPlateId;
+    renderPlateList(); renderBinBadge(); renderPlateDetail();
+    return { id: plate.id, worms: living, cohorts: stageCounts.length, startStage: dom };
+  };
 
   document.getElementById('plateStrainSelect').addEventListener('change', e => {
     if (!selectedPlateId) return;
@@ -1291,11 +1350,398 @@ function _initGrowthSimulator(plate, startHrs) {
 }
 
 // ── Plate list ────────────────────────────────────────────────────────────────
+
+// In-app text prompt — native prompt() is blocked in sandboxed/PWA webviews
+// ("prompt() is not supported"), so we use a small overlay with an input instead.
+// Resolves to the entered string, or null if cancelled.
+function _textPrompt(title, defaultVal = '') {
+  return new Promise(resolve => {
+    document.getElementById('wtTextPrompt')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'wtTextPrompt';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:900;display:flex;' +
+      'align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = `
+      <div style="background:#0f172a;border:1.5px solid var(--accent);border-radius:14px;padding:18px;max-width:320px;width:100%">
+        <div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:10px">${escHtml(title)}</div>
+        <input id="wtTextPromptInput" type="text" value="${escHtml(defaultVal)}"
+          style="width:100%;padding:9px 11px;font-size:16px;border:1px solid var(--border);border-radius:8px;background:#0a0e1a;color:#e2e8f0;margin-bottom:12px;box-sizing:border-box">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="wtTextPromptCancel" class="btn-secondary btn-sm" style="width:auto">Cancel</button>
+          <button id="wtTextPromptOk" class="btn-primary btn-sm" style="width:auto">OK</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const input = document.getElementById('wtTextPromptInput');
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+    const done = val => { ov.remove(); resolve(val); };
+    document.getElementById('wtTextPromptOk').onclick = () => done(input.value);
+    document.getElementById('wtTextPromptCancel').onclick = () => done(null);
+    ov.onclick = e => { if (e.target === ov) done(null); };
+    input.onkeydown = e => { if (e.key === 'Enter') done(input.value); else if (e.key === 'Escape') done(null); };
+  });
+}
+
+// Touch long-press drag → move a plate into a bin. HTML5 drag-and-drop never
+// fires on touchscreens, so on touch we run our own: hold a card ~320ms to pick
+// it up (a ghost follows the finger), drag over a bin chip, release to drop.
+// Mouse still uses native HTML5 DnD; these touch handlers are inert with a mouse.
+function _attachTouchDrag(card) {
+  let lpTimer = null, dragging = false, ghost = null, ids = null, curChip = null, sx = 0, sy = 0;
+  const LP = 320, CANCEL = 12;
+
+  const begin = (x, y) => {
+    const sel = window._getSelectedIds?.() || [];
+    ids = sel.includes(card.dataset.pid) ? sel : [card.dataset.pid];
+    dragging = true;
+    if (navigator.vibrate) navigator.vibrate(15);
+    ghost = card.cloneNode(true);
+    ghost.style.cssText = `position:fixed;z-index:950;pointer-events:none;opacity:0.88;width:${card.offsetWidth}px;` +
+      'box-shadow:0 10px 26px rgba(0,0,0,0.6);transform:scale(1.03);left:0;top:0;margin:0';
+    if (ids.length > 1) {
+      const badge = document.createElement('div');
+      badge.textContent = ids.length;
+      badge.style.cssText = 'position:absolute;top:-8px;right:-8px;background:var(--accent);color:#000;font-size:11px;' +
+        'font-weight:800;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center';
+      ghost.appendChild(badge);
+    }
+    document.body.appendChild(ghost);
+    card.style.opacity = '0.4';
+    moveGhost(x, y);
+  };
+  const moveGhost = (x, y) => { if (ghost) { ghost.style.left = `${x - ghost.offsetWidth / 2}px`; ghost.style.top = `${y - 24}px`; } };
+  const hover = (x, y) => {
+    if (ghost) ghost.style.visibility = 'hidden';
+    const chip = document.elementFromPoint(x, y)?.closest('.bin-chip');
+    if (ghost) ghost.style.visibility = '';
+    if (chip === curChip) return;
+    if (curChip) curChip.style.outline = '';
+    curChip = chip;
+    if (curChip) { curChip.style.outline = '2px solid var(--accent)'; curChip.style.outlineOffset = '1px'; }
+  };
+  const drop = (x, y) => {
+    if (ghost) ghost.style.visibility = 'hidden';
+    const chip = document.elementFromPoint(x, y)?.closest('.bin-chip');
+    if (chip && ids) {
+      const target = chip.dataset.binid === 'all' ? null : chip.dataset.binid;
+      for (const id of ids) pt.setPlateBin(id, target);
+      window._clearSelection?.();
+      const binName = target ? (pt.getBins().find(b => b.id === target)?.name ?? 'bin') : 'Unfiled';
+      showToast(`Moved ${ids.length} plate${ids.length !== 1 ? 's' : ''} → ${binName}`);
+      renderPlateList();
+    }
+  };
+  const finish = () => {
+    dragging = false;
+    if (ghost) { ghost.remove(); ghost = null; }
+    if (curChip) { curChip.style.outline = ''; curChip = null; }
+    card.style.opacity = ''; ids = null;
+  };
+
+  card.addEventListener('touchstart', e => {
+    const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+    lpTimer = setTimeout(() => begin(t.clientX, t.clientY), LP);
+  }, { passive: true });
+  card.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    if (!dragging) { if (Math.hypot(t.clientX - sx, t.clientY - sy) > CANCEL) clearTimeout(lpTimer); return; }
+    e.preventDefault();   // stop the list scrolling while a card is picked up
+    moveGhost(t.clientX, t.clientY); hover(t.clientX, t.clientY);
+  }, { passive: false });
+  card.addEventListener('touchend', e => {
+    clearTimeout(lpTimer);
+    if (!dragging) return;
+    const t = e.changedTouches[0]; drop(t.clientX, t.clientY); finish();
+  });
+  card.addEventListener('touchcancel', () => { clearTimeout(lpTimer); finish(); });
+}
+
+// ── Bins (groups) UI ─────────────────────────────────────────────────────────
+function renderBinBar() {
+  const bar = document.getElementById('binBar');
+  if (!bar) return;
+  // Small boxes, 3 per row, each = a drop target (class "bin-chip" for the DnD code).
+  bar.style.display = 'grid';
+  bar.style.gridTemplateColumns = 'repeat(3, 1fr)';
+  const bins = pt.getBins();
+  const box = (id, name, count, active) =>
+    `<button class="bin-chip" data-binid="${id}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;` +
+    `padding:7px 4px;min-height:46px;border-radius:10px;cursor:pointer;text-align:center;overflow:hidden;` +
+    `border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? '#0d2a22' : '#0f172a'}">` +
+    `<span style="font-size:11px;font-weight:${active ? 700 : 600};color:${active ? 'var(--accent)' : '#cbd5e1'};` +
+    `white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${name}</span>` +
+    `<span style="font-size:9px;color:var(--muted)">${count} plate${count !== 1 ? 's' : ''}</span></button>`;
+  let html = box('all', 'All', pt.getAll().length, activeBinId === 'all');
+  for (const b of bins) html += box(b.id, escHtml(b.name), pt.binPlateCount(b.id), activeBinId === b.id);
+  html += `<button id="btnNewBin" style="display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 4px;min-height:46px;` +
+    `border-radius:10px;border:1px dashed var(--border);background:none;color:var(--muted);cursor:pointer;font-size:11px">➕ Bin</button>`;
+  if (activeBinId !== 'all' && bins.some(b => b.id === activeBinId)) {
+    html += `<div style="grid-column:1 / -1;display:flex;gap:6px;align-items:center;margin-top:2px">` +
+      `<button id="btnSimBin" style="flex:1;font-size:11px;padding:6px;border-radius:8px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">🔮 Simulate bin</button>` +
+      `<button id="btnRenameBin" title="Rename bin" style="font-size:13px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--muted);cursor:pointer">✎</button>` +
+      `<button id="btnDeleteBin" title="Delete bin" style="font-size:13px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:none;color:#f87171;cursor:pointer">🗑</button>` +
+      `</div>`;
+  }
+  bar.innerHTML = html;
+
+  bar.querySelectorAll('.bin-chip').forEach(c => {
+    c.addEventListener('click', () => { activeBinId = c.dataset.binid; renderPlateList(); });
+    // Drop target: drag plate cards here to move them into this bin ('all' → Unfiled).
+    c.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; c.style.outline = '2px solid var(--accent)'; c.style.outlineOffset = '1px'; });
+    c.addEventListener('dragleave', () => { c.style.outline = ''; });
+    c.addEventListener('drop', e => {
+      e.preventDefault(); c.style.outline = '';
+      const ids = _dragPlateIds || (e.dataTransfer.getData('text/plain') || '').split(',').filter(Boolean);
+      if (!ids.length) return;
+      const target = c.dataset.binid === 'all' ? null : c.dataset.binid;   // drop on All = Unfiled
+      for (const id of ids) pt.setPlateBin(id, target);
+      window._clearSelection?.();
+      const binName = target ? (pt.getBins().find(b => b.id === target)?.name ?? 'bin') : 'Unfiled';
+      showToast(`Moved ${ids.length} plate${ids.length !== 1 ? 's' : ''} → ${binName}`);
+      renderPlateList();
+    });
+  });
+  document.getElementById('btnNewBin')?.addEventListener('click', async () => {
+    const name = await _textPrompt('Name this bin', `Bin ${pt.getBins().length + 1}`);
+    if (name === null) return;
+    const b = pt.addBin(name.trim() || `Bin ${pt.getBins().length + 1}`);
+    activeBinId = b.id; renderPlateList();
+  });
+  document.getElementById('btnRenameBin')?.addEventListener('click', async () => {
+    const b = pt.getBins().find(x => x.id === activeBinId); if (!b) return;
+    const name = await _textPrompt('Rename bin', b.name);
+    if (name === null || !name.trim()) return;
+    pt.renameBin(b.id, name.trim()); renderBinBar();
+  });
+  document.getElementById('btnDeleteBin')?.addEventListener('click', async () => {
+    const b = pt.getBins().find(x => x.id === activeBinId); if (!b) return;
+    const ok = await showConfirm(`Delete bin "<strong>${escHtml(b.name)}</strong>"?<br><br>Its ${pt.binPlateCount(b.id)} plate(s) move to <em>All / Unfiled</em> — they are NOT deleted.`, '🗑 Delete bin', 'Keep');
+    if (!ok) return;
+    pt.deleteBin(b.id); activeBinId = 'all'; renderPlateList();
+  });
+  document.getElementById('btnSimBin')?.addEventListener('click', () => openBinSimulator(activeBinId));
+  _populateMoveToBin();
+}
+
+function _populateMoveToBin() {
+  const sel = document.getElementById('moveToBinSelect');
+  if (!sel) return;
+  sel.innerHTML = `<option value="">Move to…</option><option value="__none__">— Unfiled —</option>` +
+    pt.getBins().map(b => `<option value="${b.id}">${escHtml(b.name)}</option>`).join('') +
+    `<option value="__new__">➕ New bin…</option>`;
+}
+
+// ── Bin status bar — compact live aggregate shown when a bin is active ────────
+function renderBinStatusBar() {
+  const el = document.getElementById('binStatus');
+  if (!el) return;
+  if (activeBinId === 'all') { el.style.display = 'none'; return; }
+  const plates = pt.getPlatesInBin(activeBinId);
+  if (!plates.length) { el.style.display = 'none'; return; }
+  let worms = 0, eggs = 0, lowFood = 101, inoc = 0;
+  for (const p of plates) {
+    worms += p.wormCount ?? 0;
+    eggs  += pt.totalEggs(p.id);
+    if (p.inoculatedAt) { inoc++; lowFood = Math.min(lowFood, pt.foodPercent(p.id)); }
+  }
+  el.style.display = 'block';
+  el.innerHTML = `🧫 ${plates.length} plate${plates.length !== 1 ? 's' : ''} · 🐛 ${worms} worms · 🥚 ${eggs} eggs` +
+    (inoc ? ` · 🍽 lowest food <b style="color:${lowFood > 40 ? '#5a9e32' : lowFood > 15 ? '#c08020' : '#ef4444'}">${Math.round(lowFood)}%</b>` : ' · not inoculated');
+}
+
+// ── Bin Simulator — aggregate growth preview across all plates in a bin ───────
+// Mirrors the single-plate Growth Simulator: builds each plate's life timeline,
+// then sums population-by-stage / eggs / dauer / dead at each scrub hour. Preview
+// only — never mutates plate data.
+function openBinSimulator(binId) {
+  const bin = pt.getBins().find(b => b.id === binId);
+  const plates = pt.getPlatesInBin(binId);
+  if (!plates.length) { showToast('This bin has no plates to simulate.'); return; }
+
+  const sims = plates.map(p => ({
+    plate: p,
+    snaps: buildLifeTimeline(p),
+    start: pt.elapsedSinceInoculation(p.id) ?? 0,   // dev-hours since inoculation (0 = not started)
+    inoc: !!p.inoculatedAt,
+  }));
+  const MAX_T = 21 * 24;   // scrub up to 21 days into the future
+
+  const stages = getStages('N2', 20);
+  const nameOf  = id => (stages.find(s => s.id === id)?.name ?? id);
+  const colorOf = id => (stages.find(s => s.id === id)?.color ?? '#94a3b8');
+  const SHORT = { egg: 'Egg', l1: 'L1', l2: 'L2', l3: 'L3', l4: 'L4', young_adult: 'YA', adult: 'Adult', dauer: 'Dauer' };
+  const ORDER = ['egg', 'l1', 'l2', 'l3', 'l4', 'young_adult', 'adult', 'dauer'];
+  const devIdx = id => Math.max(0, ['egg', 'l1', 'l2', 'l3', 'l4', 'young_adult', 'adult'].indexOf(id));
+  const foodColor = p => p > 40 ? '#5a9e32' : p > 15 ? '#c08020' : '#ef4444';
+
+  // ── Per-plate snapshot at scrub-hour T ───────────────────────────────────────
+  function perPlateAt(T) {
+    return sims.map(s => {
+      const snap = s.inoc ? timelineAt(s.snaps, s.start + T) : s.snaps[0];
+      const byStage = snap ? { ...snap.byStage } : {};
+      const alive = snap?.alive ?? 0, eggs = snap?.eggs ?? 0, dauer = snap?.dauer ?? 0, dead = snap?.dead ?? 0;
+      const foodPct = s.inoc ? Math.max(0, Math.min(100, snap?.foodPct ?? 100)) : 100;
+      let domStage = null, domN = 0, sumIdx = 0, sumN = 0;
+      for (const k in byStage) { if (byStage[k] > domN) { domN = byStage[k]; domStage = k; } sumIdx += devIdx(k) * byStage[k]; sumN += byStage[k]; }
+      return { name: s.plate.name, inoc: s.inoc, byStage, alive, eggs, dauer, dead, foodPct,
+        pop: alive + dauer, domStage, meanIdx: sumN ? sumIdx / sumN : 0, seeded: s.plate.wormCount ?? 0 };
+    });
+  }
+  const aggregate = pp => {
+    const byStage = {}; let alive = 0, eggs = 0, dauer = 0, dead = 0, seeded = 0;
+    for (const p of pp) { for (const k in p.byStage) byStage[k] = (byStage[k] || 0) + p.byStage[k]; alive += p.alive; eggs += p.eggs; dauer += p.dauer; dead += p.dead; seeded += p.seeded; }
+    return { byStage, alive, eggs, dauer, dead, seeded };
+  };
+
+  // ── Outlier detection (statistical, only meaningful with ≥3 plates) ──────────
+  function outliers(pp) {
+    const out = [];
+    if (pp.length < 3) return out;
+    const stat = vals => { const m = vals.reduce((a, b) => a + b, 0) / vals.length; return { m, sd: Math.sqrt(vals.reduce((a, b) => a + (b - m) ** 2, 0) / vals.length) }; };
+    const food = stat(pp.map(p => p.foodPct));
+    const dev = stat(pp.map(p => p.meanIdx));
+    const pop = stat(pp.map(p => p.pop));
+    for (const p of pp) {
+      if (food.sd > 8 && p.foodPct < food.m - 1.4 * food.sd) out.push(`🍽 <b>${escHtml(p.name)}</b> low food (${p.foodPct.toFixed(0)}% vs avg ${food.m.toFixed(0)}%) — starving fastest`);
+      if (dev.sd > 0.5 && p.meanIdx > dev.m + 1.4 * dev.sd) out.push(`⏩ <b>${escHtml(p.name)}</b> ahead of group (mostly ${SHORT[p.domStage] ?? '—'})`);
+      else if (dev.sd > 0.5 && p.meanIdx < dev.m - 1.4 * dev.sd) out.push(`⏪ <b>${escHtml(p.name)}</b> lagging (mostly ${SHORT[p.domStage] ?? '—'})`);
+      if (pop.sd > 3 && p.pop > pop.m + 1.5 * pop.sd) out.push(`📈 <b>${escHtml(p.name)}</b> overgrown (${p.pop} vs avg ${pop.m.toFixed(0)})`);
+      else if (pop.sd > 3 && p.pop < pop.m - 1.5 * pop.sd) out.push(`📉 <b>${escHtml(p.name)}</b> low population (${p.pop} vs avg ${pop.m.toFixed(0)})`);
+      const dFrac = p.pop ? p.dauer / p.pop : 0;
+      if (dFrac > 0.5 && p.dauer >= 2) out.push(`💤 <b>${escHtml(p.name)}</b> ${(dFrac * 100).toFixed(0)}% in dauer — stressed`);
+      const mFrac = (p.pop + p.dead) ? p.dead / (p.pop + p.dead) : 0;
+      if (mFrac > 0.3 && p.dead >= 2) out.push(`☠ <b>${escHtml(p.name)}</b> ${(mFrac * 100).toFixed(0)}% dead — high mortality`);
+      if (p.inoc && p.pop === 0 && p.dead > 0) out.push(`⚠ <b>${escHtml(p.name)}</b> — all worms gone (crashed)`);
+    }
+    return out;
+  }
+
+  document.getElementById('binSimModal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'binSimModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:710;display:block;' +
+    'overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 16px calc(110px + env(safe-area-inset-bottom,0px));' +
+    'animation:wlcIn 0.3s cubic-bezier(0.34,1.56,0.64,1)';
+  const sec = t => `<div style="font-size:10px;font-weight:800;letter-spacing:0.06em;color:#64748b;text-transform:uppercase;margin:0 0 6px 2px">${t}</div>`;
+  overlay.innerHTML = `
+    <div style="max-width:500px;width:100%;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <button id="btnCloseBinSim" style="background:none;border:none;color:var(--accent);font-size:15px;font-weight:700;cursor:pointer;width:auto;min-height:unset;padding:4px">← Back</button>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:800;color:#e2e8f0">🔮 Bin Simulator — ${escHtml(bin?.name ?? 'Bin')}</div>
+          <div style="font-size:11px;color:#64748b">${plates.length} plate${plates.length !== 1 ? 's' : ''} · preview only — won't change your plates</div>
+        </div>
+      </div>
+
+      <!-- Control + summary band -->
+      <div style="background:#0a1020;border:1.5px solid var(--accent);border-radius:14px;padding:13px;margin-bottom:14px;position:sticky;top:0;z-index:2">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px">
+          <span id="binSimTime" style="font-weight:800;color:var(--accent);font-size:13px"></span>
+          <span id="binSimTotals" style="color:#cbd5e1;font-size:11px"></span>
+        </div>
+        <div id="binSimBar" style="display:flex;height:16px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,0.05);margin-bottom:7px"></div>
+        <div id="binSimSub" style="font-size:10px;color:#94a3b8;line-height:1.5;margin-bottom:10px"></div>
+        <input type="range" id="binSimScrub" min="0" max="${MAX_T}" value="0" style="width:100%;accent-color:var(--accent);margin-bottom:7px">
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <button id="binSimPlay" class="sim-btn" style="background:var(--accent);color:#000">▶</button>
+          ${[{ x: 1, r: 6 }, { x: 2, r: 24 }, { x: 3, r: 72 }].map(s => `<button class="sim-btn binsim-speed" data-spd="${s.r}">${s.x}×</button>`).join('')}
+          <button id="binSimReset" class="sim-btn" style="margin-left:auto">↺ Now</button>
+        </div>
+      </div>
+
+      <div id="binSimOutliersWrap" style="margin-bottom:14px;display:none">
+        ${sec('⚠ Outliers & alerts')}
+        <div id="binSimOutliers" style="background:#1a1206;border:1px solid #7c5e1a;border-radius:12px;padding:10px"></div>
+      </div>
+
+      <div style="margin-bottom:6px">
+        ${sec('Per plate — worms by stage, food, dauer')}
+        <div id="binSimPlates"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const $ = id => document.getElementById(id);
+
+  function renderAt(T) {
+    const pp = perPlateAt(T);
+    const a = aggregate(pp);
+    $('binSimTime').textContent = T <= 0 ? 'Now' : `+${fmtHours(T)} from now`;
+    $('binSimTotals').innerHTML = `🐛 <b style="color:#e2e8f0">${a.alive}</b> &nbsp; 🥚 ${a.eggs} &nbsp; 💤 ${a.dauer} &nbsp; ☠ ${a.dead}`;
+
+    // Stacked stage distribution bar (whole bin)
+    const segs = ORDER.filter(id => a.byStage[id] > 0);
+    const totLiving = segs.reduce((s, id) => s + a.byStage[id], 0);
+    $('binSimBar').innerHTML = totLiving
+      ? segs.map(id => `<div title="${nameOf(id)}: ${a.byStage[id]}" style="width:${(a.byStage[id] / totLiving * 100).toFixed(1)}%;background:${colorOf(id)}"></div>`).join('')
+      : '<div style="width:100%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#64748b">no live worms</div>';
+
+    // Sub-metrics: growth, food spread, synchrony
+    const popNow = a.alive + a.dauer;
+    const growth = a.seeded ? popNow / a.seeded : 1;
+    const inocFoods = pp.filter(p => p.inoc).map(p => p.foodPct);
+    const foodTxt = inocFoods.length ? `food ${Math.round(Math.min(...inocFoods))}–${Math.round(Math.max(...inocFoods))}%` : 'not inoculated';
+    const lowFood = pp.filter(p => p.inoc && p.foodPct <= 15).length;
+    const doms = [...new Set(pp.filter(p => p.domStage).map(p => p.domStage))].sort((x, y) => devIdx(x) - devIdx(y));
+    const sync = doms.length === 0 ? 'no worms' : doms.length === 1 ? `synchronized — all ${SHORT[doms[0]]}` : `mixed ${SHORT[doms[0]]}→${SHORT[doms[doms.length - 1]]}`;
+    $('binSimSub').innerHTML =
+      `🐛 ${popNow} worms${a.seeded ? ` (from ${a.seeded} seeded${growth >= 1.1 ? `, ×${growth.toFixed(1)}` : ''})` : ''} · 🍽 ${foodTxt}${lowFood ? ` · <b style="color:#ef4444">${lowFood} starving</b>` : ''}<br>🔄 ${sync}`;
+
+    // Per-plate cards: each worm type counted, food bar, dauer/dead/eggs
+    $('binSimPlates').innerHTML = pp.map(p => {
+      const chips = ORDER.filter(id => p.byStage[id] > 0).map(id =>
+        `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:${colorOf(id)}22;color:${colorOf(id)};border:1px solid ${colorOf(id)}55">${SHORT[id]} ${p.byStage[id]}</span>`).join('');
+      const badges = [p.eggs ? `🥚 ${p.eggs}` : '', p.dauer ? `<span style="color:#94a3b8">💤 ${p.dauer}</span>` : '', p.dead ? `<span style="color:#ef4444">☠ ${p.dead}</span>` : ''].filter(Boolean).join(' &nbsp; ');
+      return `<div style="background:#0f172a;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span style="font-size:12px;font-weight:700;color:#e2e8f0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.name)}</span>
+          <span style="font-size:10px;color:#64748b">🐛 ${p.pop}</span>
+          ${badges ? `<span style="font-size:10px;color:#64748b">${badges}</span>` : ''}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${chips || '<span style="font-size:10px;color:#64748b">no live worms</span>'}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:9px;color:#64748b;width:34px">🍽 ${p.inoc ? '' : 'n/a'}</span>
+          <div style="flex:1;height:7px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${p.inoc ? p.foodPct.toFixed(0) : 100}%;background:${foodColor(p.foodPct)};border-radius:4px"></div>
+          </div>
+          <span style="font-size:10px;color:#94a3b8;width:32px;text-align:right">${p.inoc ? p.foodPct.toFixed(0) + '%' : '—'}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Outliers / alerts
+    const al = outliers(pp);
+    $('binSimOutliersWrap').style.display = al.length ? 'block' : 'none';
+    if (al.length) $('binSimOutliers').innerHTML = al.map(t => `<div style="font-size:11px;color:#fcd34d;line-height:1.5;margin-bottom:3px">${t}</div>`).join('');
+  }
+
+  let simT = 0, playing = false, rate = 6, rafId = null, lastTs = null;
+  const stop = () => { playing = false; lastTs = null; $('binSimPlay').textContent = '▶'; if (rafId) cancelAnimationFrame(rafId); rafId = null; };
+  const step = ts => {
+    if (lastTs == null) lastTs = ts;
+    const dt = (ts - lastTs) / 1000; lastTs = ts;
+    simT = Math.min(MAX_T, simT + dt * rate);   // rate = sim-hours per real second
+    $('binSimScrub').value = simT; renderAt(simT);
+    if (simT >= MAX_T) { stop(); return; }
+    rafId = requestAnimationFrame(step);
+  };
+  $('binSimScrub').oninput = e => { if (playing) stop(); simT = +e.target.value; renderAt(simT); };
+  $('binSimPlay').onclick = () => { if (playing) stop(); else { playing = true; $('binSimPlay').textContent = '⏸'; rafId = requestAnimationFrame(step); } };
+  overlay.querySelectorAll('.binsim-speed').forEach(b => b.onclick = () => { rate = +b.dataset.spd; });
+  $('binSimReset').onclick = () => { stop(); simT = 0; $('binSimScrub').value = 0; renderAt(0); };
+  $('btnCloseBinSim').onclick = () => { stop(); overlay.remove(); };
+
+  renderAt(0);
+}
+
 export function renderPlateList() {
+  renderBinBar();
+  renderBinStatusBar();
   const list = document.getElementById('plateList');
-  const plates = pt.getAll();
+  const plates = activeBinId === 'all' ? pt.getAll() : pt.getPlatesInBin(activeBinId);
   if (!plates.length) {
-    list.innerHTML = '<div class="section-empty">No plates yet.<br>Click "+ Add Plate".</div>';
+    list.innerHTML = `<div class="section-empty">${activeBinId === 'all'
+      ? 'No plates yet.<br>Click "+ Add Plate".'
+      : 'This bin is empty.<br>Add a plate, or move plates in via multi-select.'}</div>`;
     return;
   }
   list.innerHTML = plates.map(plate => {
@@ -1317,7 +1763,7 @@ export function renderPlateList() {
     const selClass = isSel ? ' selected' : '';
     const multiClass = isMultiSel ? ' multi-checked' : '';
 
-    return `<div class="plate-item${selClass}${multiClass}" data-pid="${plate.id}" style="position:relative;padding-top:10px">
+    return `<div class="plate-item${selClass}${multiClass}" data-pid="${plate.id}" draggable="true" style="position:relative;padding-top:10px">
       <!-- Subtle select checkbox — top right, blends in -->
       <button class="plate-sel-check ${isMultiSel?'checked':''}" data-sid="${plate.id}" title="Select plate">
         ${isMultiSel ? '✓' : ''}
@@ -1356,6 +1802,18 @@ export function renderPlateList() {
       document.getElementById('btnAnalyzeGrowth').disabled = false;
       renderPlateList(); renderPlateDetail(); updateCanvas();
     });
+    // Drag a plate card onto a bin chip (or "All") to move it. If the dragged
+    // plate is part of the current multi-selection, all selected plates move.
+    el.addEventListener('dragstart', e => {
+      const sel = window._getSelectedIds?.() || [];
+      const ids = sel.includes(el.dataset.pid) ? sel : [el.dataset.pid];
+      _dragPlateIds = ids;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ids.join(','));
+      el.style.opacity = '0.5';
+    });
+    el.addEventListener('dragend', () => { el.style.opacity = ''; _dragPlateIds = null; });
+    _attachTouchDrag(el);   // touchscreen long-press drag (mouse uses HTML5 DnD above)
   });
 
   // View Plate — single click: set plate, navigate immediately, then update

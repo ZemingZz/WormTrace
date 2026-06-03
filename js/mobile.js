@@ -11,6 +11,7 @@ let activeMotionPanel = 'canvasWrap';
 let activePlatePanel  = 'platePanelList';
 
 export function initMobile() {
+  _watchViewportCross();           // re-init cleanly if the window crosses 768px later
   if (window.innerWidth >= 768) {
     document.getElementById('mobileNav').style.display = 'none';
     return;
@@ -19,6 +20,23 @@ export function initMobile() {
   _bindEvents();
   _switchTab('plateTab', false);   // Start on Plate Tracker
   _updateHighlights();
+}
+
+// The mobile (one-panel) vs desktop (3-column grid) layout is chosen ONCE at load.
+// The grid columns are set inline on the tab views, so if the window is later resized
+// across the 768px breakpoint the old layout sticks — e.g. loading wide then viewing
+// narrow leaves the 3-column grid overflowing/clipping. The layouts aren't built for
+// live teardown, so the robust fix is to reload once when the breakpoint side actually
+// flips. Debounced; guarded so it never loops (after reload the baseline matches).
+function _watchViewportCross() {
+  const wasMobile = window.innerWidth < 768;
+  let t;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      if ((window.innerWidth < 768) !== wasMobile) location.reload();
+    }, 250);
+  });
 }
 
 window._mobileOnPlateSelected = () => {

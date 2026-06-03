@@ -6,14 +6,21 @@
  * Built for clumped/dense plates where the auto-counter struggles: the human
  * marks each worm (zoomed in), and those labels become training data.
  */
+// Life-stage labels — match the Plate Tracker stages 1:1 (ids/colors from
+// LifeCycle.js BASE_STAGES) so a labelled photo maps straight onto plate cohorts.
 export const LABEL_CATS = {
-  large:    { color: '#2e90ff', label: 'Large' },
-  juvenile: { color: '#ff8c00', label: 'Juvenile' },
-  baby:     { color: '#b446dc', label: 'Baby' },
-  edge:     { color: '#ffd400', label: 'Edge' },
-  dead:     { color: '#ff3b3b', label: 'Dead' },
-  egg:      { color: '#22c55e', label: 'Egg' },
+  egg:   { color: '#fbbf24', label: 'Egg' },
+  l1:    { color: '#34d399', label: 'L1' },
+  l2:    { color: '#60a5fa', label: 'L2' },
+  l3:    { color: '#a78bfa', label: 'L3' },
+  l4:    { color: '#f472b6', label: 'L4' },
+  adult: { color: '#ef4444', label: 'Adult' },
+  dead:  { color: '#64748b', label: 'Dead' },
 };
+
+// Old size-class labels → life-stage ids, for importing pre-switch training files.
+export const CAT_MIGRATE = { large: 'l4', juvenile: 'l2', baby: 'l1', edge: 'l4' };
+const migrateCat = c => CAT_MIGRATE[c] || c;
 
 const TAP_MOVE_TOL = 8;     // px of movement still counted as a tap (not a pan)
 const HIT_RADIUS   = 14;    // px screen radius to grab/erase an existing dot
@@ -26,7 +33,7 @@ export class WormLabeler {
     this.img = null;
     this.imgName = '';
     this.points = [];          // {x, y, cat} in IMAGE coordinates
-    this.cat = 'large';
+    this.cat = 'l4';
     this.mode = 'add';         // 'add' | 'erase'
     this.scale = 1; this.fitScale = 1;
     this.tx = 0; this.ty = 0;  // pan offset in CSS px
@@ -49,7 +56,7 @@ export class WormLabeler {
   setMode(mode)    { this.mode = mode; }
   clear()          { this.points = []; this.render(); this._changed(); }
 
-  prefill(pts, cat = 'large') {
+  prefill(pts, cat = 'l4') {
     // pts: [{x,y}] in image coords (from the auto-detector)
     for (const p of pts) this.points.push({ x: p.x, y: p.y, cat });
     this.render(); this._changed();
@@ -77,7 +84,7 @@ export class WormLabeler {
 
   loadData(obj, imgEl) {
     if (imgEl) { this.img = imgEl; this.imgName = obj.image?.name || ''; }
-    this.points = (obj.labels || []).map(p => ({ x: p.x, y: p.y, cat: p.cat }));
+    this.points = (obj.labels || []).map(p => ({ x: p.x, y: p.y, cat: migrateCat(p.cat) }));
     this._resize(); this._fit(); this.render(); this._changed();
   }
 
@@ -108,7 +115,7 @@ export class WormLabeler {
       const sx = p.x * this.scale + this.tx, sy = p.y * this.scale + this.ty;
       if (sx < -10 || sy < -10 || sx > cssW + 10 || sy > cssH + 10) continue;
       ctx.beginPath(); ctx.arc(sx, sy, 5, 0, 2 * Math.PI);
-      ctx.fillStyle = (LABEL_CATS[p.cat] || LABEL_CATS.large).color;
+      ctx.fillStyle = (LABEL_CATS[p.cat] || LABEL_CATS.l4).color;
       ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
     }
   }
