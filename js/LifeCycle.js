@@ -313,9 +313,14 @@ export const STRAINS = {
  * simulation so long-lived strains (daf-2, age-1, eat-2) persist realistically.
  * Sources: Kenyon 1993; Lakowski & Hekimi 1998; Hahm 2018 (see DAUER_RESEARCH.md).
  */
+// Normalized to N2≈20 d using each study's within-experiment fold-change. Sources:
+// Lakowski&Hekimi 1998 (PMC23719, N2/eat-2), Huang 2004 (PMC419561, daf-2 ~1.55–1.7×
+// @20°C), Shaw 2007 (PMC3124252, daf-7/-1/-3/-5, FUdR), Friedman&Johnson 1988
+// (PMC1203268, age-1 ~+40% @20°C). NOTE: dpy-13 has NO published lifespan data
+// (assumed ≈N2); daf-16(mu86) single-mutant 20°C mean is sparse (assumed ≈N2).
 const ADULT_LIFESPAN_DAYS_20C = {
-  'N2': 20, 'dpy-13': 19, 'daf-2': 45, 'daf-7': 20, 'daf-1': 20,
-  'daf-16': 15, 'daf-3': 20, 'daf-5': 20, 'eat-2': 29, 'age-1': 33,
+  'N2': 20, 'dpy-13': 20, 'daf-2': 34, 'daf-7': 27, 'daf-1': 29,
+  'daf-16': 18, 'daf-3': 20, 'daf-5': 17, 'eat-2': 28, 'age-1': 28,
 };
 // Lifespan scales inversely with metabolic rate — cold extends, heat shortens.
 const LIFESPAN_TEMP_FACTOR = { 10: 2.0, 15: 1.5, 20: 1.0, 25: 0.65 };

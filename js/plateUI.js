@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=71';
-import { PlateCanvas }       from './PlateCanvas.js?v=71';
-import { showToast, showConfirm } from './Toast.js?v=71';
-import { showFeedback }      from './Feedback.js?v=71';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=72';
+import { PlateCanvas }       from './PlateCanvas.js?v=72';
+import { showToast, showConfirm } from './Toast.js?v=72';
+import { showFeedback }      from './Feedback.js?v=72';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=71';
+} from './LifeCycle.js?v=72';
 
 export const pt = new PlateTracker();
 
@@ -1686,8 +1686,13 @@ function openBinSimulator(binId) {
       </div>
 
       <div style="margin-bottom:6px">
-        ${sec('Survival & dauer — % over time (solid = alive, dashed = dauer)')}
+        ${sec('Survival curve — % alive over time (lifespan model)')}
         <div id="binSimSurvival" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
+      </div>
+
+      <div style="margin-bottom:6px">
+        ${sec('Dauer curve — % of living worms in dauer')}
+        <div id="binSimDauer" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:6px"></div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -1723,56 +1728,49 @@ function openBinSimulator(binId) {
     const living = snap.alive + snap.dauer;
     return living > 0 ? (snap.dauer / living) * 100 : 0;
   };
-  function buildSurvivalChart() {
+  const stepPath = fn => {   // stepped polyline points for a value-function over time
+    let p = '', prev = null;
+    for (let t = 0; t <= MAX_T; t += 12) {
+      const X = survX(t), Y = survY(fn(t));
+      p += (prev === null ? '' : `${X.toFixed(1)},${prev.toFixed(1)} `) + `${X.toFixed(1)},${Y.toFixed(1)} `;
+      prev = Y;
+    }
+    return p.trim();
+  };
+  // Generic KM-style chart: one solid line per plate of valFn, axes, legend, marker.
+  function buildChart(containerId, valFn, markerId, yTitle) {
     const A = '#111';
     let g = `<rect x="0" y="0" width="${SV.W}" height="${SV.H}" fill="#ffffff"/>`;
-    // Y ticks + labels
     for (const pct of [0, 25, 50, 75, 100]) {
       const yy = survY(pct);
       g += `<line x1="${SV.x0 - 4}" y1="${yy}" x2="${SV.x0}" y2="${yy}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${SV.x0 - 7}" y="${yy + 3}" font-size="9" fill="${A}" text-anchor="end">${pct}</text>`;
     }
-    // X ticks + labels (days)
     for (let d = 0; d * 24 <= MAX_T; d += 10) {
       const xx = survX(d * 24);
       g += `<line x1="${xx}" y1="${SV.y1}" x2="${xx}" y2="${SV.y1 + 4}" stroke="${A}" stroke-width="1"/>` +
         `<text x="${xx}" y="${SV.y1 + 15}" font-size="9" fill="${A}" text-anchor="middle">${d}</text>`;
     }
-    // L-shaped axes + titles
     g += `<line x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
       `<line x1="${SV.x0}" y1="${SV.y1}" x2="${SV.x1}" y2="${SV.y1}" stroke="${A}" stroke-width="1.2"/>` +
       `<text x="${(SV.x0 + SV.x1) / 2}" y="${SV.y1 + 32}" font-size="11" fill="${A}" text-anchor="middle">Survival time (days)</text>` +
-      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">Percent</text>`;
-    // Stepped path for any value-function over the timeline
-    const stepPath = fn => {
-      let p = '', prev = null;
-      for (let t = 0; t <= MAX_T; t += 12) {
-        const X = survX(t), Y = survY(fn(t));
-        p += (prev === null ? '' : `${X.toFixed(1)},${prev.toFixed(1)} `) + `${X.toFixed(1)},${Y.toFixed(1)} `;
-        prev = Y;
-      }
-      return p.trim();
-    };
-    // Line-style key: solid = % alive, dashed = % dauer
-    let legend =
-      `<line x1="${SV.x1 + 14}" y1="${SV.y0 + 6}" x2="${SV.x1 + 32}" y2="${SV.y0 + 6}" stroke="${A}" stroke-width="2"/>` +
-      `<text x="${SV.x1 + 37}" y="${SV.y0 + 9}" font-size="9" fill="${A}">% alive</text>` +
-      `<line x1="${SV.x1 + 14}" y1="${SV.y0 + 20}" x2="${SV.x1 + 32}" y2="${SV.y0 + 20}" stroke="${A}" stroke-width="2" stroke-dasharray="4 2"/>` +
-      `<text x="${SV.x1 + 37}" y="${SV.y0 + 23}" font-size="9" fill="${A}">% dauer</text>`;
-    // Per plate: solid survival line + dashed dauer line (same colour)
-    let lines = '';
+      `<text x="13" y="${(SV.y0 + SV.y1) / 2}" font-size="11" fill="${A}" text-anchor="middle" transform="rotate(-90 13 ${(SV.y0 + SV.y1) / 2})">${yTitle}</text>`;
+    let lines = '', legend = '';
     sims.forEach((s, i) => {
       const col = SURV_PALETTE[i % SURV_PALETTE.length];
-      lines += `<polyline points="${stepPath(t => survAt(s, t))}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
-      lines += `<polyline points="${stepPath(t => dauerAt(s, t))}" fill="none" stroke="${col}" stroke-width="1.4" stroke-dasharray="4 2" opacity="0.85"/>`;
-      const ly = SV.y0 + 42 + i * 15;
+      lines += `<polyline points="${stepPath(t => valFn(s, t))}" fill="none" stroke="${col}" stroke-width="1.8"/>`;
+      const ly = SV.y0 + 8 + i * 15;
       legend += `<line x1="${SV.x1 + 14}" y1="${ly}" x2="${SV.x1 + 32}" y2="${ly}" stroke="${col}" stroke-width="2.6"/>` +
         `<text x="${SV.x1 + 37}" y="${ly + 3}" font-size="9" fill="${A}">${escHtml(s.plate.name).slice(0, 18)}</text>`;
     });
-    const marker = `<line id="binSimSurvMarker" x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="#888" stroke-width="1" stroke-dasharray="3 2"/>`;
-    $('binSimSurvival').innerHTML =
+    const marker = `<line id="${markerId}" x1="${SV.x0}" y1="${SV.y0}" x2="${SV.x0}" y2="${SV.y1}" stroke="#888" stroke-width="1" stroke-dasharray="3 2"/>`;
+    $(containerId).innerHTML =
       `<svg viewBox="0 0 ${SV.W} ${SV.H}" width="100%" style="display:block;border-radius:6px">${g}${lines}${legend}${marker}</svg>`;
   }
+  const buildCharts = () => {
+    buildChart('binSimSurvival', survAt, 'binSimSurvMarker', 'Percent survival');
+    buildChart('binSimDauer', dauerAt, 'binSimDauerMarker', 'Percent in dauer');
+  };
 
   function renderAt(T) {
     const pp = perPlateAt(T);
@@ -1829,9 +1827,12 @@ function openBinSimulator(binId) {
     $('binSimOutliersWrap').style.display = al.length ? 'block' : 'none';
     if (al.length) $('binSimOutliers').innerHTML = al.map(t => `<div style="font-size:11px;color:#fcd34d;line-height:1.5;margin-bottom:3px">${t}</div>`).join('');
 
-    // Move the survival-curve "now" marker to the current scrub time
-    const mk = $('binSimSurvMarker');
-    if (mk) { const xx = survX(T).toFixed(1); mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
+    // Move both charts' "now" markers to the current scrub time
+    const xx = survX(T).toFixed(1);
+    for (const id of ['binSimSurvMarker', 'binSimDauerMarker']) {
+      const mk = $(id);
+      if (mk) { mk.setAttribute('x1', xx); mk.setAttribute('x2', xx); }
+    }
   }
 
   let simT = 0, playing = false, rate = 6, rafId = null, lastTs = null;
@@ -1850,7 +1851,7 @@ function openBinSimulator(binId) {
   $('binSimReset').onclick = () => { stop(); simT = 0; $('binSimScrub').value = 0; renderAt(0); };
   $('btnCloseBinSim').onclick = () => { stop(); overlay.remove(); };
 
-  buildSurvivalChart();   // static per-plate curves (marker tracks scrub in renderAt)
+  buildCharts();   // static per-plate curves (markers track scrub in renderAt)
   renderAt(0);
 }
 
