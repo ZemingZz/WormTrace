@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css?v=131">
+  <link rel="stylesheet" href="css/iphone.css?v=135">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -802,7 +802,7 @@
     .hl-bs{font-size:11px;color:#94a3b8;line-height:1.4}
     .hl-box.soon{opacity:.6;border-style:dashed}
     .hl-box.soon:hover{transform:none;border-color:#475569;box-shadow:none}
-    .hl-back{position:absolute;top:14px;left:14px;background:#1e2a3a;border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset}
+    .hl-back{position:fixed;top:14px;left:14px;z-index:20;background:rgba(30,42,58,0.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset;box-shadow:0 4px 14px rgba(0,0,0,0.45)}
     #homeMsg{min-height:18px;font-size:12px;color:#facc15;margin-top:18px}
     .hl-foot{margin-top:30px;display:flex;flex-direction:column;align-items:center;gap:5px}
   </style>
@@ -1060,20 +1060,20 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=131"></script>
-<script type="module" src="js/experimentsApp.js?v=131"></script>
-<script type="module" src="js/flyExperimentsApp.js?v=131"></script>
-<script type="module" src="js/flyStockApp.js?v=131"></script>
-<script type="module" src="js/flyPathwaysApp.js?v=131"></script>
-<script type="module" src="js/flyTrackersApp.js?v=131"></script>
-<script type="module" src="js/literatureApp.js?v=131"></script>
-<script type="module" src="js/app.js?v=131"></script>
-<script type="module" src="js/plateApp.js?v=131"></script>
-<script type="module" src="js/countApp.js?v=131"></script>
-<script type="module" src="js/collectionApp.js?v=131"></script>
-<script type="module" src="js/pathwaysApp.js?v=131"></script>
+<script type="module" src="js/homeApp.js?v=135"></script>
+<script type="module" src="js/experimentsApp.js?v=135"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=135"></script>
+<script type="module" src="js/flyStockApp.js?v=135"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=135"></script>
+<script type="module" src="js/flyTrackersApp.js?v=135"></script>
+<script type="module" src="js/literatureApp.js?v=135"></script>
+<script type="module" src="js/app.js?v=135"></script>
+<script type="module" src="js/plateApp.js?v=135"></script>
+<script type="module" src="js/countApp.js?v=135"></script>
+<script type="module" src="js/collectionApp.js?v=135"></script>
+<script type="module" src="js/pathwaysApp.js?v=135"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=131';
+  import { initMobile } from './js/mobile.js?v=135';
   initMobile();
 </script>
 </body>

@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=131';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=135';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -175,6 +175,15 @@ export class PlateCanvas {
     const R  = Math.min(W, H) / 2 - 8;
     const lawnR = R * 0.86;
 
+    // Visual-only sim state for death decay (does NOT touch the data model).
+    this._aliveNow = wormCount;
+    this._hrNow = hrsElapsed;
+    if (this._lastPlateId !== (plate && plate.id)) {        // fresh visuals per plate
+      this._lastPlateId = plate && plate.id;
+      this._corpses = []; this._eggs = []; this._agents = [];
+      this._prevAlive = null; this._prevHr = null; this._deathAccum = 0;
+    }
+
     ctx.clearRect(0, 0, W, H);
 
     // ── Agar base ────────────────────────────────────────────────────────────
@@ -215,29 +224,32 @@ export class PlateCanvas {
       }
 
       const wormR = lawnR * (lawnScale > 0 ? lawnScale : 0.6) * 0.9;
+      const isDpy = (plate.strainId ?? 'N2') === 'dpy-13';
 
-      // ── Eggs ── laid along the worms' (random) crawl paths; drawn under worms.
+      // Build the worm list (mixed-generation round-robin, or a single stage).
+      let items = [];
+      if (population && population.length) {
+        const groups = population.map(g => ({ ...g, left: g.count }));
+        let remaining = groups.reduce((s, g) => s + g.left, 0);
+        while (remaining > 0 && items.length < 200) {
+          for (const g of groups) { if (g.left > 0) { items.push({ stageId: g.stageId, color: g.color }); g.left--; remaining--; } }
+        }
+      } else if (wormCount > 0 && stage) {
+        items = Array.from({ length: Math.min(Math.round(wormCount), 200) }, () => ({ stageId: stage.id, color: stage.color }));
+      }
+
+      // ── Eggs ── laid one at a time at worm positions (under everything). ──
       if (totalEggs > 0) {
         this._updateEggs(totalEggs);
         this._drawEggsAt(ctx, cx, cy, wormR);
       }
 
-      // ── Worms ────────────────────────────────────────────────────────────
-      if (population && population.length) {
-        // Mixed multi-generation population: round-robin interleave so stages mix
-        const isDpy = (plate.strainId ?? 'N2') === 'dpy-13';
-        const groups = population.map(g => ({ ...g, left: g.count }));
-        const items = [];
-        let remaining = groups.reduce((s, g) => s + g.left, 0);
-        while (remaining > 0 && items.length < 200) {
-          for (const g of groups) {
-            if (g.left > 0) { items.push({ stageId: g.stageId, color: g.color }); g.left--; remaining--; }
-          }
-        }
-        this._layoutWorms(ctx, cx, cy, wormR, items, isDpy);
-      } else if (wormCount > 0 && stage) {
-        this._drawWorms(ctx, cx, cy, wormR, wormCount, stage, plate.strainId ?? 'N2');
-      }
+      // ── Dead worms decay over 6 sim-hours (some L1 congregate near them). ──
+      this._handleDeaths(items, isDpy);
+      this._drawCorpses(ctx, cx, cy, wormR);
+
+      // ── Living worms ──
+      if (items.length) this._layoutWorms(ctx, cx, cy, wormR, items, isDpy);
     }
 
     // ── Plate rim ────────────────────────────────────────────────────────────
@@ -330,28 +342,33 @@ export class PlateCanvas {
     return (isDpy ? dpyMap : normalMap)[stageId] ?? [10, 1.8];
   }
 
-  /** Draw one sinusoidal worm centred at the current transform origin. */
+  /** Draw one worm centred at the current transform origin. The body is a smooth
+   *  sinusoidal curve (a travelling wave runs head→tail), drawn with quadratic curves
+   *  for a fluid, cartoon-style crawl. */
   _drawOneWorm(ctx, wLen, wWid, color, swimPhase) {
-    const N_SEG = 10;
+    const N = 14;
     const pts = [];
-    for (let s = 0; s <= N_SEG; s++) {
-      const u = s / N_SEG;
+    for (let s = 0; s <= N; s++) {
+      const u = s / N;
       const bx = (u - 0.5) * wLen * 2;
-      const taper = Math.sin(u * Math.PI);
-      const by = Math.sin(u * Math.PI * 2.2 - swimPhase) * wWid * 2.8 * taper;
+      const taper = Math.sin(u * Math.PI);                 // thin at both ends
+      const by = Math.sin(u * Math.PI * 2.0 - swimPhase) * wWid * 2.6 * taper;
       pts.push([bx, by]);
     }
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let s = 1; s <= N_SEG; s++) ctx.lineTo(pts[s][0], pts[s][1]);
-    ctx.strokeStyle = color + 'dd';
-    ctx.lineWidth = wWid * 2.0; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let s = 1; s <= N_SEG; s++) ctx.lineTo(pts[s][0], pts[s][1]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = wWid * 0.8; ctx.stroke();
-    const head = pts[N_SEG];
+    // Trace the body through segment midpoints with quadratic curves (smooth, no kinks).
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let s = 1; s < N; s++) {
+        const mx = (pts[s][0] + pts[s + 1][0]) / 2, my = (pts[s][1] + pts[s + 1][1]) / 2;
+        ctx.quadraticCurveTo(pts[s][0], pts[s][1], mx, my);
+      }
+      ctx.lineTo(pts[N][0], pts[N][1]);
+    };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    trace(); ctx.strokeStyle = color + 'dd'; ctx.lineWidth = wWid * 2.0; ctx.stroke();
+    trace(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = wWid * 0.8; ctx.stroke();
+    const head = pts[N];
     ctx.beginPath(); ctx.arc(head[0], head[1], wWid * 1.6, 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
   }
@@ -371,32 +388,54 @@ export class PlateCanvas {
       for (let i = A.length; i < drawCount; i++) {
         const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.85;
         A.push({ nx: Math.cos(ang) * rr, ny: Math.sin(ang) * rr, dir: Math.random() * Math.PI * 2,
-                 spd: 0.00055 + Math.random() * 0.00075, ph: Math.random() * Math.PI * 2 });
+                 turn: 0, spd: 0.00055 + Math.random() * 0.00075, ph: Math.random() * Math.PI * 2 });
       }
     } else if (A.length > drawCount) {
       A.length = drawCount;
     }
 
-    // 3× smaller than the old fixed sizes, and proportional to the canvas → zoom enlarges.
-    const sizeScale = (this.canvas.width / 300) / 3;
+    // ~6× smaller than the old fixed sizes, and proportional to the canvas → zoom enlarges.
+    const sizeScale = (this.canvas.width / 300) / 6;
 
     for (let i = 0; i < drawCount; i++) {
       const it = items[i], ag = A[i];
-      // Random walk: gently jitter the heading, step forward, steer back inside the lawn.
-      ag.dir += (Math.random() - 0.5) * 0.22;
-      ag.nx += Math.cos(ag.dir) * ag.spd;
-      ag.ny += Math.sin(ag.dir) * ag.spd;
-      const r = Math.hypot(ag.nx, ag.ny);
-      if (r > 0.9) {
-        const posAng = Math.atan2(ag.ny, ag.nx);
-        ag.nx = Math.cos(posAng) * 0.9;
-        ag.ny = Math.sin(posAng) * 0.9;
-        ag.dir = posAng + Math.PI + (Math.random() - 0.5) * 0.6;   // turn back toward centre
+      const isDauer = !!(it && it.stageId === 'dauer');   // dauer larvae are arrested → don't move
+      if (!isDauer) {
+        // ── Smooth crawl: the TURN RATE (angular velocity) drifts slowly and is damped,
+        //    so the path curves gently instead of twitching frame-to-frame. ──
+        if (ag.turn === undefined) ag.turn = 0;
+        ag.turn += (Math.random() - 0.5) * 0.012;   // gentle wander
+        ag.turn *= 0.9;                              // damping → no sharp jerks
+        // L1 babies that latched onto a dead worm steer toward it; the pull fades as
+        // the corpse decomposes, so they slowly disperse over the 6-hour window.
+        if (ag.attractTo) {
+          const corpse = ag.attractTo;
+          const aDecay = (this._hrNow - corpse.bornHr) / 6;
+          if (aDecay >= 1 || !(this._corpses && this._corpses.includes(corpse)) || it.stageId !== 'l1') {
+            ag.attractTo = null;
+          } else {
+            const ang = Math.atan2(corpse.ny - ag.ny, corpse.nx - ag.nx);
+            let d = ang - ag.dir; d = Math.atan2(Math.sin(d), Math.cos(d));
+            ag.turn += d * 0.10 * (1 - aDecay);     // strong early, weakens → disperse
+          }
+        }
+        const r = Math.hypot(ag.nx, ag.ny);
+        if (r > 0.8) {                              // steer SMOOTHLY back toward centre near the edge
+          const inward = Math.atan2(-ag.ny, -ag.nx);
+          let d = inward - ag.dir; d = Math.atan2(Math.sin(d), Math.cos(d));   // shortest angle
+          ag.turn += d * 0.05 * ((r - 0.8) / 0.2);
+        }
+        ag.turn = Math.max(-0.06, Math.min(0.06, ag.turn));
+        ag.dir += ag.turn;
+        ag.nx += Math.cos(ag.dir) * ag.spd;
+        ag.ny += Math.sin(ag.dir) * ag.spd;
+        const r2 = Math.hypot(ag.nx, ag.ny);       // gentle hard limit (rarely hit, no dir flip → no jump)
+        if (r2 > 0.94) { const pa = Math.atan2(ag.ny, ag.nx); ag.nx = Math.cos(pa) * 0.94; ag.ny = Math.sin(pa) * 0.94; }
       }
       let [wLen, wWid] = this._wormSize(it.stageId, isDpy);
       wLen *= sizeScale; wWid *= sizeScale;
       const wx = cx + ag.nx * maxR, wy = cy + ag.ny * maxR;
-      const swimPhase = t * 0.06 + ag.ph;
+      const swimPhase = isDauer ? ag.ph : (t * 0.07 + ag.ph);   // dauer: frozen pose, no undulation
       ctx.save();
       ctx.translate(wx, wy);
       ctx.rotate(ag.dir);                 // head points the way it's crawling
@@ -451,27 +490,33 @@ export class PlateCanvas {
     if (corners.br) _draw(corners.br, W - PAD, H - PAD - (corners.br?.length ?? 0) * LINE - PAD, 'right', colorOverrides.br ?? '#fbbf24');
   }
 
-  /** Maintain the persistent egg list so eggs are dropped where worms have crawled.
-   *  Each egg is stored in normalised lawn coords with a random rotation, so it stays
-   *  put once laid. New eggs appear at a random worm's CURRENT position (its path);
-   *  if no worms are present yet, they fall on random spots. */
+  /** Drop one egg at a random worm's CURRENT position (its crawl path); random spot
+   *  if no worms are present yet. */
+  _layOneEgg() {
+    const eggs = this._eggs || (this._eggs = []);
+    const ags = this._agents; let nx, ny;
+    if (ags && ags.length) {
+      const a = ags[Math.floor(Math.random() * ags.length)];
+      nx = a.nx + (Math.random() - 0.5) * 0.05;
+      ny = a.ny + (Math.random() - 0.5) * 0.05;
+    } else {
+      const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.82;
+      nx = Math.cos(ang) * rr; ny = Math.sin(ang) * rr;
+    }
+    eggs.push({ nx, ny, rot: Math.random() * Math.PI });
+  }
+
+  /** Keep the egg list in step with the (integer) standing-egg count. Eggs are laid
+   *  ONE AT A TIME at random moments — the live rate is set by the simulation (eggs/hr),
+   *  and within that hour they pop in randomly. A large initial backlog fills at once. */
   _updateEggs(totalEggs) {
     const eggs = this._eggs || (this._eggs = []);
-    const cap = Math.min(totalEggs, 140);
-    if (eggs.length > cap) eggs.length = cap;        // eggs hatched / plate reset
-    const ags = this._agents;
-    while (eggs.length < cap) {
-      let nx, ny;
-      if (ags && ags.length) {
-        const a = ags[Math.floor(Math.random() * ags.length)];   // a worm's current path point
-        nx = a.nx + (Math.random() - 0.5) * 0.05;
-        ny = a.ny + (Math.random() - 0.5) * 0.05;
-      } else {
-        const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.82;
-        nx = Math.cos(ang) * rr; ny = Math.sin(ang) * rr;
-      }
-      eggs.push({ nx, ny, rot: Math.random() * Math.PI });
-    }
+    const cap = Math.min(Math.floor(totalEggs), 140);
+    if (eggs.length > cap) { eggs.length = cap; return; }   // eggs hatched / plate reset
+    const deficit = cap - eggs.length;
+    if (deficit <= 0) return;
+    if (deficit > 12) { for (let k = 0; k < deficit; k++) this._layOneEgg(); }  // first load of a mature plate
+    else if (Math.random() < 0.15) this._layOneEgg();                           // trickle: ~1 egg, randomly timed
   }
 
   _drawEggsAt(ctx, cx, cy, maxR) {
@@ -479,12 +524,74 @@ export class PlateCanvas {
     const eggScale = this.canvas.width / 300;        // scales with the canvas (zoom-aware)
     for (const e of eggs) {
       ctx.beginPath();
-      ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, 2.2 * eggScale, 1.5 * eggScale, e.rot, 0, Math.PI * 2);
+      ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, 1.55 * eggScale, 1.0 * eggScale, e.rot, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(247,238,200,0.9)';
       ctx.fill();
       ctx.strokeStyle = 'rgba(170,140,70,0.45)';
       ctx.lineWidth = 0.5 * eggScale;
       ctx.stroke();
+    }
+  }
+
+  /** Detect deaths (drop in the live count as sim-time advances) and spawn a decaying
+   *  corpse for each, at a dying worm's position. ~15% of current L1 larvae latch onto
+   *  the fresh corpse to congregate; they disperse as it decomposes (see _layoutWorms). */
+  _handleDeaths(items, isDpy) {
+    const alive = this._aliveNow, hr = this._hrNow;
+    if (!this._corpses) this._corpses = [];
+    if (this._prevAlive == null) { this._prevAlive = alive; this._prevHr = hr; this._deathAccum = 0; return; }
+    const dHr = hr - this._prevHr;
+    if (dHr < 0 || dHr > 18) {            // scrubbed / jumped: resync (clear on rewind)
+      if (dHr < 0) this._corpses = [];
+      this._prevAlive = alive; this._prevHr = hr; return;
+    }
+    if (alive < this._prevAlive) this._deathAccum = (this._deathAccum || 0) + (this._prevAlive - alive);
+    this._prevAlive = alive; this._prevHr = hr;
+    if (this._deathAccum > 60) this._deathAccum = 60;          // clamp backlog
+
+    const A = this._agents;
+    const [baseLen, baseWid] = this._wormSize('adult', isDpy);
+    while (this._deathAccum >= 1 && this._corpses.length < 40) {
+      this._deathAccum -= 1;
+      let nx, ny;
+      if (A && A.length) { const a = A[Math.floor(Math.random() * A.length)]; nx = a.nx; ny = a.ny; }
+      else { const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.8; nx = Math.cos(ang) * rr; ny = Math.sin(ang) * rr; }
+      const corpse = { nx, ny, bornHr: hr, rot: Math.random() * Math.PI * 2, len: baseLen, wid: baseWid };
+      this._corpses.push(corpse);
+      // 15% of current L1 larvae congregate near this fresh corpse for the 6-hour window.
+      if (A) for (let i = 0; i < A.length; i++) {
+        if (items[i] && items[i].stageId === 'l1' && Math.random() < 0.15) A[i].attractTo = corpse;
+      }
+    }
+    this._corpses = this._corpses.filter(c => (hr - c.bornHr) < 6);   // gone after ~6 h
+  }
+
+  /** Draw decaying corpses: a worm that curls tighter, browns and fades over 6 sim-hours. */
+  _drawCorpses(ctx, cx, cy, maxR) {
+    const corpses = this._corpses || [];
+    if (!corpses.length) return;
+    const hr = this._hrNow;
+    const sizeScale = (this.canvas.width / 300) / 6;
+    for (const c of corpses) {
+      const a = Math.max(0, Math.min(1, (hr - c.bornHr) / 6));   // 0 = fresh, 1 = decomposed
+      const op = 0.72 * (1 - a);
+      if (op <= 0.02) continue;
+      const x = cx + c.nx * maxR, y = cy + c.ny * maxR;
+      const len = c.len * sizeScale * (1 - 0.3 * a), wid = c.wid * sizeScale;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(c.rot);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = `rgba(${Math.round(125 + 35 * a)},${Math.round(110 - 35 * a)},70,${op})`;  // green→brown
+      ctx.lineWidth = Math.max(0.5, wid * 2.0 * (1 - 0.35 * a));
+      ctx.beginPath();
+      const turns = 1.1 + 0.9 * a, seg = 18;        // curls tighter as it dies
+      for (let s = 0; s <= seg; s++) {
+        const u = s / seg, ang = u * Math.PI * 2 * turns, rr = len * (0.55 - 0.4 * u);
+        const px = Math.cos(ang) * rr, py = Math.sin(ang) * rr;
+        s === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.restore();
     }
   }
 }
