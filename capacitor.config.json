@@ -1,0 +1,11 @@
+{
+  "appId": "edu.fau.biotasticlab.wormtrace",
+  "appName": "WormTrace",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  }
+}
