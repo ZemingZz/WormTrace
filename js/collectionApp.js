@@ -13,9 +13,9 @@
  * Standard values are assembled from LifeCycle.js (the single source of research
  * data); user edits are stored as OVERRIDES on top, so "Standardize" = drop overrides.
  */
-import { STRAINS, adultLifespanDays, getStages, registerStrain } from './LifeCycle.js?v=144';
-import { showToast, showConfirm } from './Toast.js?v=144';
-import { WORM_CATALOG } from './wormCatalog.js?v=144';
+import { STRAINS, adultLifespanDays, getStages, registerStrain } from './LifeCycle.js?v=145';
+import { showToast, showConfirm } from './Toast.js?v=145';
+import { WORM_CATALOG } from './wormCatalog.js?v=145';
 
 const KEY = 'wormtrace_collection_v1';
 const N2_LIFESPAN = 23;   // baseline for long-lived / short-lived classification

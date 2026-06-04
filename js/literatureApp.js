@@ -151,57 +151,81 @@ const ORGS = [
 ];
 let curOrg = 'celegans';
 
-// ── OVERLAP: conserved aging pathways shared by worms & flies (orthologs + refs). ──
+// ── OVERLAP: conserved aging mechanisms across yeast, worms & flies. `scope` places
+//    each one in the Venn (all3 = centre; wormfly = animal-only lens; yeast = unique). ──
 const CONSERVED = [
   {
-    key: 'iis', label: 'Insulin / IGF → FOXO', color: '#7c3aed',
-    note: 'Reduced insulin/IGF signalling activates a FOXO transcription factor (DAF-16 in worms, dFOXO in flies) to extend lifespan and boost stress resistance — the founding conserved aging pathway.',
-    pairs: [['daf-2', 'InR'], ['age-1', 'Pi3K92E'], ['akt-1/2', 'Akt1'], ['daf-16', 'dFOXO']],
+    key: 'tor', label: 'TOR → S6K', color: '#0891b2', scope: 'all3',
+    members: { worm: 'let-363 (TOR) · rsks-1 (S6K)', fly: 'Tor · S6k', yeast: 'TOR1 · Sch9' },
+    note: 'The TOR (TORC1) nutrient kinase and its S6K-family effector are conserved from yeast to mammals; lowering TOR (genetically or with rapamycin) extends lifespan in all of them.',
     refs: [
-      { title: 'The endocrine regulation of aging by insulin-like signals', by: 'Tatar, Bartke & Antebi (2003) Science 299:1346', url: 'https://www.science.org/doi/10.1126/science.1081447' },
-      { title: 'The genetics of ageing (review across species)', by: 'Kenyon C. (2010) Nature 464:504', url: 'https://www.nature.com/articles/nature08980' },
+      { title: 'TOR & Sch9 regulate yeast replicative life span', by: 'Kaeberlein et al. (2005) Science 310:1193', url: 'https://www.science.org/doi/10.1126/science.1115535' },
+      { title: 'TOR pathway modulation extends fly lifespan', by: 'Kapahi et al. (2004) Curr. Biol. 14:885', url: 'https://pubmed.ncbi.nlm.nih.gov/15186745/' },
+      { title: 'mTOR is a key modulator of ageing', by: 'Johnson, Rabinovitch & Kaeberlein (2013) Nature 493:338', url: 'https://www.nature.com/articles/nature11861' },
     ],
   },
   {
-    key: 'tor', label: 'TOR → S6K / 4E-BP', color: '#0891b2',
-    note: 'Lowering TOR (and its effector S6K) extends lifespan in both organisms, partly through reduced translation and increased autophagy.',
-    pairs: [['let-363', 'Tor'], ['rsks-1', 'S6k'], ['daf-15', 'raptor']],
-    refs: [
-      { title: 'mTOR is a key modulator of ageing and age-related disease', by: 'Johnson, Rabinovitch & Kaeberlein (2013) Nature 493:338', url: 'https://www.nature.com/articles/nature11861' },
-      { title: 'Regulation of lifespan by modulating the TOR pathway (fly)', by: 'Kapahi et al. (2004) Curr. Biol. 14:885', url: 'https://pubmed.ncbi.nlm.nih.gov/15186745/' },
-    ],
-  },
-  {
-    key: 'dr', label: 'Dietary restriction', color: '#ec4899',
-    note: 'Dietary restriction extends lifespan across yeast, worms, flies and mammals through conserved nutrient-sensing (overlapping with IIS & TOR).',
-    pairs: [['eat-2', 'food dilution'], ['aak-2', 'AMPK']],
+    key: 'dr', label: 'Dietary restriction', color: '#ec4899', scope: 'all3',
+    members: { worm: 'eat-2 (genetic DR)', fly: 'food / yeast dilution', yeast: 'low glucose (CR)' },
+    note: 'Reducing nutrients without malnutrition extends lifespan in yeast, worms, flies and mammals — the most conserved non-genetic longevity intervention, acting largely through TOR, PKA/AMPK and sirtuins.',
     refs: [
       { title: 'Extending healthy life span — from yeast to humans', by: 'Fontana, Partridge & Longo (2010) Science 328:321', url: 'https://www.science.org/doi/10.1126/science.1172539' },
-      { title: 'Aging & survival: genetics of lifespan extension by DR', by: 'Mair & Dillin (2008) Annu. Rev. Biochem. 77:727', url: 'https://pubmed.ncbi.nlm.nih.gov/18373439/' },
+      { title: 'DR & lifespan: lessons from invertebrate models', by: 'Lee & Min (2017) review — PMID 28007498', url: 'https://pubmed.ncbi.nlm.nih.gov/28007498/' },
     ],
   },
   {
-    key: 'sir', label: 'Sirtuins', color: '#f59e0b',
-    note: 'Sirtuin (Sir2) activity has been linked to dietary-restriction longevity in both worms and flies (the magnitude has been debated).',
-    pairs: [['sir-2.1', 'Sir2']],
+    key: 'sir', label: 'Sirtuins (Sir2)', color: '#f59e0b', scope: 'all3',
+    members: { worm: 'sir-2.1', fly: 'Sir2', yeast: 'SIR2' },
+    note: 'NAD⁺-dependent sirtuin deacetylases were discovered in yeast (rDNA silencing → fewer ERCs) and linked to longevity in worms and flies; the exact magnitude has been debated, but the gene family is deeply conserved.',
     refs: [
+      { title: 'SIR2 & yeast life span (rDNA silencing)', by: 'Kaeberlein, McVey & Guarente (1999) Genes Dev. 13:2570', url: 'https://pubmed.ncbi.nlm.nih.gov/10521401/' },
       { title: 'Sir2 mediates dietary-restriction longevity (fly)', by: 'Rogina & Helfand (2004) PNAS 101:15998', url: 'https://www.pnas.org/doi/10.1073/pnas.0404184101' },
     ],
   },
   {
-    key: 'autophagy', label: 'Autophagy', color: '#16a34a',
-    note: 'Autophagy is required for lifespan extension by reduced IIS/TOR and by dietary restriction in both organisms.',
-    pairs: [['bec-1', 'Atg6'], ['lgg-1', 'Atg8a'], ['unc-51', 'Atg1']],
+    key: 'ampk', label: 'AMPK / Snf1', color: '#10b981', scope: 'all3',
+    members: { worm: 'aak-2 (AMPK)', fly: 'AMPK · LKB1', yeast: 'Snf1' },
+    note: 'The AMP-activated kinase energy sensor (Snf1 in yeast) opposes TOR/PKA and is required for, or sufficient to extend, lifespan under dietary restriction across yeast, worms and flies.',
     refs: [
-      { title: 'Autophagy as a promoter of longevity', by: 'Hansen, Rubinsztein & Walker (2018) Nat. Rev. Mol. Cell Biol. 19:579', url: 'https://pubmed.ncbi.nlm.nih.gov/30050098/' },
+      { title: 'CR extends yeast CLS via the Snf1 (AMPK) pathway', by: 'Deprez et al. (2017) Mol. Cell. Biol. 37:e00562', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5472825/' },
+      { title: 'AMPK & energy-sensing in animal longevity', by: 'Greer et al. (2007) Curr. Biol. 17:1646 (aak-2/AMPK)', url: 'https://pubmed.ncbi.nlm.nih.gov/17900900/' },
+    ],
+  },
+  {
+    key: 'autophagy', label: 'Autophagy', color: '#16a34a', scope: 'all3',
+    members: { worm: 'bec-1 · lgg-1 · unc-51', fly: 'Atg6 · Atg8a · Atg1', yeast: 'ATG genes' },
+    note: 'Autophagy (cellular self-digestion / recycling) is required for the lifespan extension from reduced TOR/IIS and from dietary restriction in yeast, worms and flies alike.',
+    refs: [
+      { title: 'Autophagy as a promoter of longevity (review)', by: 'Hansen, Rubinsztein & Walker (2018) Nat. Rev. Mol. Cell Biol. 19:579', url: 'https://pubmed.ncbi.nlm.nih.gov/30050098/' },
+      { title: 'Autophagy required for DR longevity in C. elegans', by: 'Hansen et al. (2008) PLoS Genet. 4:e24', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC2242811/' },
+    ],
+  },
+  {
+    key: 'iis', label: 'Insulin / IGF → FOXO', color: '#7c3aed', scope: 'wormfly',
+    members: { worm: 'daf-2 · age-1 · daf-16 (FOXO)', fly: 'InR · chico · dFOXO', yeast: '— (no insulin/IGF; Sch9 / Ras-PKA is the functional analog)' },
+    note: 'The insulin/IGF receptor → PI3K/Akt → FOXO axis controls aging in animals (worms, flies, mammals). Yeast lacks insulin/IGF, but its Sch9 and Ras–PKA kinases play the analogous nutrient-sensing role.',
+    refs: [
+      { title: 'The endocrine regulation of aging by insulin-like signals', by: 'Tatar, Bartke & Antebi (2003) Science 299:1346', url: 'https://www.science.org/doi/10.1126/science.1081447' },
+      { title: 'The genetics of ageing (review)', by: 'Kenyon C. (2010) Nature 464:504', url: 'https://www.nature.com/articles/nature08980' },
+    ],
+  },
+  {
+    key: 'rdna', label: 'rDNA stability / ERCs', color: '#f97316', scope: 'yeast',
+    members: { worm: '—', fly: '—', yeast: 'SIR2 / FOB1 → rDNA, ERCs' },
+    note: 'Replicative aging of the yeast mother cell is driven by instability of the rDNA repeats and the accumulation of extrachromosomal rDNA circles (ERCs) — a mechanism best characterised in yeast (Sir2 suppresses it; Fob1 promotes it).',
+    refs: [
+      { title: 'Fob1 / ERCs drive replicative aging', by: 'Defossez et al. (1999) Mol. Cell 3:447', url: 'https://pubmed.ncbi.nlm.nih.gov/10198633/' },
+      { title: 'An age-inducing factor: ERCs cause aging in yeast', by: 'Sinclair & Guarente (1997) Cell 91:1033', url: 'https://pubmed.ncbi.nlm.nih.gov/9428525/' },
     ],
   },
 ];
 const OVERLAP_GENERAL = [
+  { title: 'The hallmarks of aging (nutrient sensing: IIS, mTOR, sirtuins, AMPK)', by: 'López-Otín et al. (2013) Cell 153:1194', url: 'https://pubmed.ncbi.nlm.nih.gov/23746838/' },
+  { title: 'Lessons on longevity from budding yeast', by: 'Kaeberlein (2010) Nature 464:513', url: 'https://www.nature.com/articles/nature08981' },
+  { title: 'Genome-wide conserved longevity genes in yeast & worms', by: 'Smith et al. (2008) Genome Res. 18:564', url: 'https://www.sciencedirect.com/science/article/abs/pii/S0047637406002508' },
   { title: 'Mechanisms of ageing: public or private?', by: 'Partridge & Gems (2002) Nat. Rev. Genet. 3:165', url: 'https://pubmed.ncbi.nlm.nih.gov/11972154/' },
-  { title: 'The plasticity of aging: insights from long-lived mutants', by: 'Kenyon C. (2005) Cell 120:449', url: 'https://pubmed.ncbi.nlm.nih.gov/15734678/' },
 ];
-let selPw = 'all';   // selected conserved pathway in the Overlap graph
+let selPw = 'all';   // selected conserved mechanism in the Overlap view
 
 function refItem(it) {
   const link = it.url
@@ -214,42 +238,49 @@ function refItem(it) {
 }
 
 // Bipartite "ortholog bridge" graph: worm gene ↔ fly gene, coloured by pathway, clickable.
-function overlapGraph(scope) {
-  const list = scope === 'all' ? CONSERVED : CONSERVED.filter(p => p.key === scope);
-  const pairs = [];
-  list.forEach(p => p.pairs.forEach(([w, f]) => pairs.push({ w, f, color: p.color, key: p.key })));
-  const W = 520, rowH = 34, top = 30, H = top + pairs.length * rowH + 8;
-  const lx = 12, lw = 188, rx = 320, rw = 188;
-  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0a0e1a"/>` +
-    `<text x="${lx + lw / 2}" y="19" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">🪱 C. elegans</text>` +
-    `<text x="${rx + rw / 2}" y="19" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">🪰 Drosophila</text>`;
-  pairs.forEach((pr, i) => {
-    const y = top + i * rowH, cy = y + 13;
-    s += `<line x1="${lx + lw}" y1="${cy}" x2="${rx}" y2="${cy}" stroke="${pr.color}" stroke-width="2"/>` +
-      `<circle cx="${(lx + lw + rx) / 2}" cy="${cy}" r="2.5" fill="${pr.color}"/>` +
-      `<foreignObject x="${lx}" y="${y}" width="${lw}" height="26"><button xmlns="http://www.w3.org/1999/xhtml" data-pw="${pr.key}" title="${esc(pr.key)} pathway" style="width:100%;height:26px;cursor:pointer;background:${pr.color}22;border:1px solid ${pr.color};border-radius:7px;color:#e2e8f0;font-size:11.5px;font-weight:700">${esc(pr.w)}</button></foreignObject>` +
-      `<foreignObject x="${rx}" y="${y}" width="${rw}" height="26"><button xmlns="http://www.w3.org/1999/xhtml" data-pw="${pr.key}" title="${esc(pr.key)} pathway" style="width:100%;height:26px;cursor:pointer;background:${pr.color}22;border:1px solid ${pr.color};border-radius:7px;color:#e2e8f0;font-size:11.5px;font-weight:700">${esc(pr.f)}</button></foreignObject>`;
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border:1px solid #1e2a3a;border-radius:12px;background:#0a0e1a">${s}</svg>`;
+// 3-circle Venn (🪱 C. elegans · 🪰 Drosophila · 🧫 S. cerevisiae) with the conserved
+// mechanisms placed in the correct region; each label is a clickable filter.
+function vennDiagram() {
+  const W = 360, H = 300;
+  const A = { x: 132, y: 124, r: 86, c: '#34d399' };   // worm (green)
+  const B = { x: 228, y: 124, r: 86, c: '#a78bfa' };   // fly (purple)
+  const C = { x: 180, y: 200, r: 86, c: '#f59e0b' };   // yeast (amber)
+  const circ = o => `<circle cx="${o.x}" cy="${o.y}" r="${o.r}" fill="${o.c}1f" stroke="${o.c}" stroke-width="1.5"/>`;
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0a0e1a"/>` + circ(A) + circ(B) + circ(C) +
+    `<text x="70" y="42" fill="#34d399" font-size="12" font-weight="800">🪱 C. elegans</text>` +
+    `<text x="224" y="42" fill="#a78bfa" font-size="12" font-weight="800">🪰 Drosophila</text>` +
+    `<text x="180" y="296" fill="#f59e0b" font-size="12" font-weight="800" text-anchor="middle">🧫 S. cerevisiae</text>`;
+  const btn = (x, y, w, p) => `<foreignObject x="${x}" y="${y}" width="${w}" height="17"><button xmlns="http://www.w3.org/1999/xhtml" data-pw="${p.key}" title="shared mechanism" style="width:100%;height:17px;cursor:pointer;background:${selPw === p.key ? p.color : p.color + '33'};border:1px solid ${p.color};border-radius:9px;color:${selPw === p.key ? '#04201a' : '#e2e8f0'};font-size:9px;font-weight:700;padding:0;white-space:nowrap;overflow:hidden">${esc(p.label)}</button></foreignObject>`;
+  // centre = shared by all three
+  const all3 = CONSERVED.filter(p => p.scope === 'all3');
+  all3.forEach((p, i) => s += btn(140, 132 + i * 18, 80, p));
+  // worm ∩ fly lens (animals only), above the centre
+  const wf = CONSERVED.find(p => p.scope === 'wormfly'); if (wf) s += btn(130, 102, 100, wf);
+  // yeast-only, lower lobe
+  const ye = CONSERVED.find(p => p.scope === 'yeast'); if (ye) s += btn(140, 238, 80, ye);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border:1px solid #1e2a3a;border-radius:12px;max-width:430px;margin:0 auto">${s}</svg>`;
 }
 
 function renderOverlap(root) {
   const chip = (key, label, color) =>
     `<button data-pwchip="${key}" style="width:auto;min-height:unset;cursor:pointer;border-radius:14px;padding:5px 12px;font-size:11.5px;font-weight:700;
       ${selPw === key ? `background:${color || '#00d4aa'};border:1px solid ${color || '#00d4aa'};color:#04201a` : `background:#111a2b;border:1px solid ${color || '#1e2a3a'};color:#cbd5e1`}">${esc(label)}</button>`;
-  const chips = [chip('all', 'All pathways', '#00d4aa'), ...CONSERVED.map(p => chip(p.key, p.label, p.color))].join(' ');
+  const chips = [chip('all', 'All', '#00d4aa'), ...CONSERVED.map(p => chip(p.key, p.label, p.color))].join(' ');
   const visible = selPw === 'all' ? CONSERVED : CONSERVED.filter(p => p.key === selPw);
+  const col = (emoji, name, val, c) =>
+    `<div style="flex:1;min-width:90px"><div style="font-size:10px;font-weight:800;color:${c}">${emoji} ${name}</div><div style="font-size:11px;color:#cbd5e1;line-height:1.4">${esc(val || '—')}</div></div>`;
   const refsBlocks = visible.map(p => `
     <div class="lit-group">
-      <div class="lit-group-t" style="color:${p.color}">${esc(p.label)} — worms ↔ flies</div>
-      <div style="font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 6px">${esc(p.note)}</div>
+      <div class="lit-group-t" style="color:${p.color}">${esc(p.label)}${p.scope === 'all3' ? ' — shared by all three' : p.scope === 'wormfly' ? ' — worms & flies (animals)' : ' — yeast'}</div>
+      <div style="font-size:11px;color:#94a3b8;line-height:1.5;margin:0 0 8px">${esc(p.note)}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">${col('🪱', 'C. elegans', p.members.worm, '#34d399')}${col('🪰', 'Drosophila', p.members.fly, '#a78bfa')}${col('🧫', 'Yeast', p.members.yeast, '#f59e0b')}</div>
       ${p.refs.map(refItem).join('')}
     </div>`).join('');
   root.innerHTML += `
-    <div class="lit-intro">Aging research in <i>C. elegans</i> and <i>Drosophila</i> overlaps heavily: the same nutrient-sensing pathways control lifespan in both. Tap a gene or a chip to focus a conserved pathway.</div>
+    <div class="lit-intro">Aging research in <i>C. elegans</i>, <i>Drosophila</i> and <i>S. cerevisiae</i> overlaps heavily — the same nutrient-sensing pathways set lifespan in all three. The Venn shows where each mechanism is shared; tap a label or chip to focus it.</div>
+    ${vennDiagram()}
+    <div style="font-size:10px;color:#64748b;margin:6px 0 12px;text-align:center">Centre = conserved across all three · top lens = animals only (insulin/IGF–FOXO) · lower lobe = yeast-specific.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${chips}</div>
-    ${overlapGraph(selPw)}
-    <div style="font-size:10px;color:#64748b;margin:6px 0 12px">Lines link orthologous genes (same pathway role in each species). Reduced insulin/IGF & TOR signalling and dietary restriction all converge on FOXO, autophagy and stress resistance to extend life.</div>
     <div class="lit-group"><div class="lit-group-t">🔍 Comparative / cross-species reviews</div>${OVERLAP_GENERAL.map(refItem).join('')}</div>
     ${refsBlocks}`;
   root.querySelectorAll('[data-pw], [data-pwchip]').forEach(b =>
