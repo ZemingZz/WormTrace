@@ -37,7 +37,7 @@ const PROCEDURES = [
     materials: [
       { amt: 3, unit: 'g', name: 'NaCl' },
       { amt: 2.5, unit: 'g', name: 'Bacto-peptone' },
-      { amt: 17, unit: 'g', name: 'agar' },
+      { amt: 20, unit: 'g', name: 'agar (→ 2%, 20 g/L for firmness)' },
       { amt: 975, unit: 'mL', name: 'deionized water' },
       { amt: 1, unit: 'mL', name: '1 M CaCl₂ (sterile)' },
       { amt: 1, unit: 'mL', name: '1 M MgSO₄ (sterile)' },
@@ -61,7 +61,7 @@ const PROCEDURES = [
     purpose: 'Test whether worms move toward an odor (attractant) or away (repellent) on a foodless agar plate, then compute a Chemotaxis Index. The batch slider scales only the assay agar — the tiny azide and odor solutions are made fresh as fixed recipes in the steps.',
     baseVol: 1000, volNoun: 'chemotaxis agar', presets: [100, 250, 500, 1000],
     materials: [
-      { amt: 20, unit: 'g', name: 'agar (→ 2%)' },
+      { amt: 20, unit: 'g', name: 'agar (→ 2%, 20 g/L for firmness)' },
       { toVol: true, name: 'deionized water' },
       { amt: 5, unit: 'mL', name: '1 M KPO₄ buffer pH 6.0 (→ 5 mM)' },
       { amt: 1, unit: 'mL', name: '1 M CaCl₂ (→ 1 mM)' },

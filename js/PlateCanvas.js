@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=99';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=100';
 
 export class PlateCanvas {
   constructor(canvas) {
