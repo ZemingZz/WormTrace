@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=136';
-import { PlateCanvas }       from './PlateCanvas.js?v=136';
-import { showToast, showConfirm } from './Toast.js?v=136';
-import { showFeedback }      from './Feedback.js?v=136';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=137';
+import { PlateCanvas }       from './PlateCanvas.js?v=137';
+import { showToast, showConfirm } from './Toast.js?v=137';
+import { showFeedback }      from './Feedback.js?v=137';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=136';
+} from './LifeCycle.js?v=137';
 
 export const pt = new PlateTracker();
 
@@ -1299,8 +1299,9 @@ function _initGrowthSimulator(plate, startHrs) {
   const offset    = plate.stageStartOffset ?? 0;
 
   const simCanvas = new PlateCanvas(canvas);
-  simCanvas._noAutoSize = true;   // keep its fixed 240×240 size
+  simCanvas._noAutoSize = true;   // keep its fixed 300×300 size
   simCanvas.start();
+  simCanvas.enableZoom(canvas);   // tap the sim plate to pinch/scroll-zoom & pan (updates live)
 
   // Precompute the full 28-day population/food timeline ONCE (food depletes from
   // the real growing population → realistic hatching, dauer, death).
