@@ -241,24 +241,27 @@ function refItem(it) {
 // 3-circle Venn (🪱 C. elegans · 🪰 Drosophila · 🧫 S. cerevisiae) with the conserved
 // mechanisms placed in the correct region; each label is a clickable filter.
 function vennDiagram() {
-  const W = 360, H = 300;
-  const A = { x: 132, y: 124, r: 86, c: '#34d399' };   // worm (green)
-  const B = { x: 228, y: 124, r: 86, c: '#a78bfa' };   // fly (purple)
-  const C = { x: 180, y: 200, r: 86, c: '#f59e0b' };   // yeast (amber)
-  const circ = o => `<circle cx="${o.x}" cy="${o.y}" r="${o.r}" fill="${o.c}1f" stroke="${o.c}" stroke-width="1.5"/>`;
+  // Pure SVG (no foreignObject — that renders unreliably on mobile). Text labels scale
+  // with the viewBox, so it stays legible on phone and desktop alike.
+  const W = 340, H = 290;
+  const A = { x: 122, y: 116, r: 84, c: '#34d399' };   // worm (green)
+  const B = { x: 218, y: 116, r: 84, c: '#a78bfa' };   // fly (purple)
+  const C = { x: 170, y: 196, r: 84, c: '#f59e0b' };   // yeast (amber)
+  const SHORT = { tor: 'TOR → S6K', dr: 'Dietary restriction', sir: 'Sirtuins', ampk: 'AMPK / Snf1', autophagy: 'Autophagy', iis: 'Insulin/IGF → FOXO', rdna: 'rDNA / ERCs' };
+  const circ = o => `<circle cx="${o.x}" cy="${o.y}" r="${o.r}" fill="${o.c}1c" stroke="${o.c}" stroke-width="1.6"/>`;
+  const lbl = (x, y, p, fs) => `<text x="${x}" y="${y}" data-pw="${p.key}" text-anchor="middle" font-size="${fs}" font-weight="${selPw === p.key ? 800 : 600}" fill="${selPw === p.key ? p.color : '#e2e8f0'}" style="cursor:pointer">${esc(SHORT[p.key] || p.label)}</text>`;
   let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0a0e1a"/>` + circ(A) + circ(B) + circ(C) +
-    `<text x="70" y="42" fill="#34d399" font-size="12" font-weight="800">🪱 C. elegans</text>` +
-    `<text x="224" y="42" fill="#a78bfa" font-size="12" font-weight="800">🪰 Drosophila</text>` +
-    `<text x="180" y="296" fill="#f59e0b" font-size="12" font-weight="800" text-anchor="middle">🧫 S. cerevisiae</text>`;
-  const btn = (x, y, w, p) => `<foreignObject x="${x}" y="${y}" width="${w}" height="17"><button xmlns="http://www.w3.org/1999/xhtml" data-pw="${p.key}" title="shared mechanism" style="width:100%;height:17px;cursor:pointer;background:${selPw === p.key ? p.color : p.color + '33'};border:1px solid ${p.color};border-radius:9px;color:${selPw === p.key ? '#04201a' : '#e2e8f0'};font-size:9px;font-weight:700;padding:0;white-space:nowrap;overflow:hidden">${esc(p.label)}</button></foreignObject>`;
-  // centre = shared by all three
+    `<text x="58" y="30" fill="#34d399" font-size="12" font-weight="800">🪱 C. elegans</text>` +
+    `<text x="282" y="30" fill="#a78bfa" font-size="12" font-weight="800" text-anchor="end">🪰 Drosophila</text>` +
+    `<text x="170" y="284" fill="#f59e0b" font-size="12" font-weight="800" text-anchor="middle">🧫 S. cerevisiae</text>`;
+  // worm ∩ fly lens (animals only) — above the central all-three region
+  const wf = CONSERVED.find(p => p.scope === 'wormfly'); if (wf) s += lbl(170, 84, wf, 9);
+  // centre = shared by all three (stacked, centred on the 3-way intersection)
   const all3 = CONSERVED.filter(p => p.scope === 'all3');
-  all3.forEach((p, i) => s += btn(140, 132 + i * 18, 80, p));
-  // worm ∩ fly lens (animals only), above the centre
-  const wf = CONSERVED.find(p => p.scope === 'wormfly'); if (wf) s += btn(130, 102, 100, wf);
-  // yeast-only, lower lobe
-  const ye = CONSERVED.find(p => p.scope === 'yeast'); if (ye) s += btn(140, 238, 80, ye);
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;border:1px solid #1e2a3a;border-radius:12px;max-width:430px;margin:0 auto">${s}</svg>`;
+  const y0 = 122; all3.forEach((p, i) => s += lbl(170, y0 + i * 13, p, 9.5));
+  // yeast-only — lower lobe
+  const ye = CONSERVED.find(p => p.scope === 'yeast'); if (ye) s += lbl(170, 232, ye, 9);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;border:1px solid #1e2a3a;border-radius:12px;max-width:360px;margin:0 auto">${s}</svg>`;
 }
 
 function renderOverlap(root) {
