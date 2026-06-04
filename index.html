@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css?v=137">
+  <link rel="stylesheet" href="css/iphone.css?v=143">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -803,6 +803,8 @@
     .hl-box.soon{opacity:.6;border-style:dashed}
     .hl-box.soon:hover{transform:none;border-color:#475569;box-shadow:none}
     .hl-back{position:fixed;top:14px;left:14px;z-index:20;background:rgba(30,42,58,0.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset;box-shadow:0 4px 14px rgba(0,0,0,0.45)}
+    .hl-about{display:inline-flex;align-items:center;gap:5px;margin:-16px auto 20px;background:#101a2c;border:1px solid #2d3748;color:#94a3b8;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;width:auto;min-height:unset;transition:border-color .14s,color .14s}
+    .hl-about:hover{border-color:#00d4aa;color:#e2e8f0}
     #homeMsg{min-height:18px;font-size:12px;color:#facc15;margin-top:18px}
     .hl-foot{margin-top:30px;display:flex;flex-direction:column;align-items:center;gap:5px}
   </style>
@@ -843,6 +845,7 @@
   <button class="hl-back" data-ceback type="button">← 🏠 Biotastic Lab</button>
   <h1 class="hl-title">🪱 <span class="hl-accent"><i>C. elegans</i></span></h1>
   <div class="hl-sub">Select a tool</div>
+  <button class="hl-about" data-about="celegans" type="button">ℹ What is C. elegans?</button>
   <div class="hl-grid">
     <button class="hl-box" data-cetab="plateTab" type="button"><div class="hl-ic">🧫</div><div class="hl-bt">Plate Tracker</div><div class="hl-bs">Plates, bins &amp; growth sim</div></button>
     <button class="hl-box" data-cetab="motionTab" type="button"><div class="hl-ic">🔬</div><div class="hl-bt">Movement Tracker</div><div class="hl-bs">Video motion &amp; patterns</div></button>
@@ -858,6 +861,7 @@
   <button class="hl-back" data-droback type="button">← 🏠 Biotastic Lab</button>
   <h1 class="hl-title">🪰 <span class="hl-accent"><i>Drosophila</i></span></h1>
   <div class="hl-sub">Select a tool</div>
+  <button class="hl-about" data-about="drosophila" type="button">ℹ What is Drosophila?</button>
   <div class="hl-grid">
     <button class="hl-box" data-droexp type="button"><div class="hl-ic">📋</div><div class="hl-bt">Experiments &amp; Procedures</div><div class="hl-bs">Fly food, crosses &amp; assays</div></button>
     <button class="hl-box" data-droopen="flyStock" type="button"><div class="hl-ic">🧬</div><div class="hl-bt">Stock Collection</div><div class="hl-bs">Strains, genotypes &amp; lifespans</div></button>
@@ -1060,20 +1064,20 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=137"></script>
-<script type="module" src="js/experimentsApp.js?v=137"></script>
-<script type="module" src="js/flyExperimentsApp.js?v=137"></script>
-<script type="module" src="js/flyStockApp.js?v=137"></script>
-<script type="module" src="js/flyPathwaysApp.js?v=137"></script>
-<script type="module" src="js/flyTrackersApp.js?v=137"></script>
-<script type="module" src="js/literatureApp.js?v=137"></script>
-<script type="module" src="js/app.js?v=137"></script>
-<script type="module" src="js/plateApp.js?v=137"></script>
-<script type="module" src="js/countApp.js?v=137"></script>
-<script type="module" src="js/collectionApp.js?v=137"></script>
-<script type="module" src="js/pathwaysApp.js?v=137"></script>
+<script type="module" src="js/homeApp.js?v=143"></script>
+<script type="module" src="js/experimentsApp.js?v=143"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=143"></script>
+<script type="module" src="js/flyStockApp.js?v=143"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=143"></script>
+<script type="module" src="js/flyTrackersApp.js?v=143"></script>
+<script type="module" src="js/literatureApp.js?v=143"></script>
+<script type="module" src="js/app.js?v=143"></script>
+<script type="module" src="js/plateApp.js?v=143"></script>
+<script type="module" src="js/countApp.js?v=143"></script>
+<script type="module" src="js/collectionApp.js?v=143"></script>
+<script type="module" src="js/pathwaysApp.js?v=143"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=137';
+  import { initMobile } from './js/mobile.js?v=143';
   initMobile();
 </script>
 </body>

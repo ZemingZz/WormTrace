@@ -7,34 +7,40 @@ const KEY = 'wt_welcomed';
 
 const STEPS = [
   {
-    icon: '🎥',
-    title: 'Movement Tracker',
-    desc: 'Upload a video of your worms. WormTrace automatically detects and tracks each worm across frames, building trajectories and extracting movement features.',
-    tip: 'Tap "Video" in the bottom nav to see the live tracking canvas.',
+    icon: '🧪',
+    title: 'Start at Biotastic Lab',
+    desc: 'The home screen is your lab bench. Pick a model organism to open its toolkit — 🪱 C. elegans (worms) or 🪰 Drosophila (flies) — or open the 📚 Literature library.',
+    tip: 'Tap the small “ℹ What is…?” chip on a project to learn what each organism is used for.',
   },
   {
-    icon: '📊',
-    title: 'Pattern Recognition',
-    desc: 'Click a worm on screen, scrub to a behaviour you want to capture, then press Capture Pattern. The app uses Dynamic Time Warping to find other worms with matching movement.',
-    tip: 'Name patterns like "omega turn", "forward crawl", or "reversal" for easy reference.',
+    icon: '🧬',
+    title: 'Stock / Strain Collection',
+    desc: 'Browse every strain the lab works with — lifespans (incl. ♀/♂ where known), genotypes, pathways and sources. Tiles are colour-coded long- vs short-lived, with a survival-curve comparison.',
+    tip: 'Tap a tile for full stats. Edit any value, add your own strain, or “Standardize” to reset.',
+  },
+  {
+    icon: '🔗',
+    title: 'Pathways',
+    desc: 'An interactive aging-signalling network (insulin/IGF → FOXO, TOR, dauer/DR…). Your strains auto-tag onto the gene they affect — tap a chip to jump to its data.',
+    tip: 'Pinch / scroll to zoom, drag to pan. Sources are linked right under the graph.',
   },
   {
     icon: '🧫',
-    title: 'Plate Tracker',
-    desc: 'Add your experiment plates, choose the strain (N2, daf-2, dpy-13…) and incubation temperature. The app calculates expected developmental stages from published timing data.',
-    tip: 'Tap "Inoculate Plate — Start Timer" to begin real-time development tracking.',
-  },
-  {
-    icon: '⏱',
-    title: 'Development Timeline',
-    desc: 'Watch plates progress Egg → L1 → L2 → L3 → L4 → Young Adult → Reproductive Adult. Stage timings adjust automatically for your temperature (10°C, 15°C, 20°C, 25°C).',
-    tip: '25°C is ~1.8× faster than 20°C. daf-2 worms are slower and enter dauer at 25°C.',
+    title: 'Plate & Culture Trackers',
+    desc: 'Track cultures over time: C. elegans plates with a live growth simulator, or Drosophila vials/bottles with a flip schedule. The plate graphic animates worms, eggs, dauer and decay.',
+    tip: 'On a plate, tap 📊 Status → 🔮 Growth Simulator. Press ▶, add food, or tap the plate to zoom.',
   },
   {
     icon: '📋',
-    title: 'Compare & Export',
-    desc: 'Tap the ☐ checkbox on each plate card to select it, then hit Compare for side-by-side charts of development, food, and egg counts. Export any plate as Excel.',
-    tip: 'Upload real microscopy data (CSV) to compare against the simulated predictions.',
+    title: 'Experiments & Procedures',
+    desc: 'Step-by-step protocols that scale to your batch size (NGM, fly food, bleaching, crosses…) plus full assays — lifespan, chemotaxis, climbing, drug & bacterial screening — with built-in result trackers.',
+    tip: 'Tap a card to expand it, set your volume, and tick off steps as you go (progress is saved).',
+  },
+  {
+    icon: '📚',
+    title: 'Literature',
+    desc: 'Every reference behind the app, split by organism (🪱 / 🪰) with an 🔗 Overlap tab showing where worm & fly aging research converge on the same conserved pathways.',
+    tip: 'Each protocol, assay and pathway also links its own source in-place.',
   },
 ];
 
@@ -52,10 +58,10 @@ function showWelcomeScreen() {
   const overlay = _makeOverlay('welcomeScreen');
   overlay.innerHTML = `
     <div class="wlc-box">
-      <div class="wlc-logo">🔬</div>
-      <h1 class="wlc-title">WormTrace</h1>
-      <p class="wlc-sub">C. elegans movement &amp; plate tracker</p>
-      <p class="wlc-sub2">Science-grade tracking in your pocket</p>
+      <div class="wlc-logo">🧪</div>
+      <h1 class="wlc-title">Biotastic Lab</h1>
+      <p class="wlc-sub">C. elegans &amp; Drosophila research toolkit</p>
+      <p class="wlc-sub2">Collections · pathways · culture trackers · protocols · literature</p>
 
       <div class="wlc-actions">
         <button id="btnWlcNew" class="wlc-btn-primary">
@@ -67,7 +73,7 @@ function showWelcomeScreen() {
       </div>
 
       <div class="wlc-version">
-        WormTrace v1.0 · Built for C. elegans research<br>
+        Biotastic Lab · C. elegans &amp; Drosophila<br>
         <span style="color:#475569">Developed by Dr. Kailiang Jia, Zeming Zhang,<br>
         Victoria Daroch &amp; Christian Fior · Built using Claude</span>
       </div>
@@ -105,7 +111,7 @@ function showInstructions(overlay) {
             : '<div></div>'}
           ${step < STEPS.length - 1
             ? `<button id="btnWlcNext" class="wlc-btn-primary" style="flex:2">Next →</button>`
-            : `<button id="btnWlcFinish" class="wlc-btn-primary" style="flex:2">Start WormTrace 🚀</button>`}
+            : `<button id="btnWlcFinish" class="wlc-btn-primary" style="flex:2">Enter the Lab 🚀</button>`}
         </div>
 
         <button id="btnWlcSkipAll" class="wlc-skip">Skip instructions</button>

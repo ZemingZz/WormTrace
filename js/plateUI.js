@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=137';
-import { PlateCanvas }       from './PlateCanvas.js?v=137';
-import { showToast, showConfirm } from './Toast.js?v=137';
-import { showFeedback }      from './Feedback.js?v=137';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=143';
+import { PlateCanvas }       from './PlateCanvas.js?v=143';
+import { showToast, showConfirm } from './Toast.js?v=143';
+import { showFeedback }      from './Feedback.js?v=143';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=137';
+} from './LifeCycle.js?v=143';
 
 export const pt = new PlateTracker();
 
@@ -828,6 +828,11 @@ function showPlateStatusModal(plateId) {
           ${[{x:1,r:4},{x:2,r:8},{x:3,r:12}].map(s => `<button class="sim-btn sim-speed" data-spd="${s.r}">${s.x}×</button>`).join('')}
           <button id="simReset" class="sim-btn" style="margin-left:auto">↺ Now</button>
         </div>
+        <!-- Add food: each click adds 0.1 mL → recomputes the timeline & end time -->
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button id="simAddFood" class="sim-btn" style="flex:1;background:#0d2a22;border:1px solid #16734f;color:#34d399">🍽 Add food (+0.1 mL)</button>
+          <span id="simAddedFood" style="font-size:10px;color:#64748b;white-space:nowrap"></span>
+        </div>
       </div>
 
       <!-- Big stage display (follows the simulator) -->
@@ -957,7 +962,7 @@ function showPlateStatusModal(plateId) {
  * thus dauer at L1 / death) triggers realistically once offspring crowd the plate.
  * Precompute ONCE, then look up any time point. Returns an array of snapshots.
  */
-function buildLifeTimeline(plate) {
+function buildLifeTimeline(plate, food0Override) {
   const strainId = plate.strainId, tempC = plate.tempC;
   const stages   = getStages(strainId, tempC);
   const adultStart = (stages.find(s => s.id === 'adult') ?? stages[stages.length - 1]).start;
@@ -979,7 +984,8 @@ function buildLifeTimeline(plate) {
   const colorOf  = id => (stages.find(s => s.id === id)?.color ?? '#00d4aa');
 
   const DT = 6, MAX_H = 90 * 24, POP_CAP = 5e6;   // headroom so charts can auto-fit long-lived strains
-  let food = plate.initialFood ?? 0.2;
+  const food0 = food0Override ?? plate.initialFood ?? 0.2;   // override = "add food" in the simulator
+  let food = food0;
 
   // Seed from ALL real cohorts (founding + user-added), each appearing at its
   // addedAtHrs with its own developmental age. This makes added worms show the
@@ -1019,7 +1025,7 @@ function buildLifeTimeline(plate) {
       const sid = stageIdAt(c.age);
       byStage[sid] = (byStage[sid] ?? 0) + c.count;
       alive += c.count;
-      if (c.age >= adultStart && c.age <= adultStart + layWindow) {
+      if (!c.starving && c.age >= adultStart && c.age <= adultStart + layWindow) {
         const timeLaying = c.age - adultStart;   // how long THIS cohort has laid
         eggCrop += c.count * layRate * Math.min(timeLaying, eggDur);
       }
@@ -1031,7 +1037,7 @@ function buildLifeTimeline(plate) {
     if (dauer >= 1) population.push({ stageId: 'dauer', color: '#94a3b8', count: Math.round(dauer) });
     const byStageR = {}; for (const k in byStage) byStageR[k] = r1(byStage[k]);
     snaps.push({ h, population, byStage: byStageR, alive: r1(alive), dauer: r1(dauer),
-      dead: r1(dead), eggs: eggStanding, foodPct: (food / (plate.initialFood ?? 0.2)) * 100 });
+      dead: r1(dead), eggs: eggStanding, foodPct: (food / food0) * 100 });
 
     // 2) Consume food (dauer & dead & eggs don't feed)
     let consume = 0;
@@ -1062,8 +1068,18 @@ function buildLifeTimeline(plate) {
       for (const c of cohorts) {
         if (c.dauer || c.dead) continue;
         const sid = stageIdAt(c.age);
-        if ((DAUER.decisionStages.includes(sid) || c.age < eggDur) && canDauer) c.dauer = true;
-        else c.dead = true;
+        if ((DAUER.decisionStages.includes(sid) || c.age < eggDur) && canDauer) {
+          c.dauer = true;                 // dauer: the dedicated survival response
+        } else if (!c.starving) {
+          // Everyone else STARVES — they don't drop dead at once. Start a starvation
+          // clock with a stage-specific median survival; mortality is applied gradually
+          // in step 5. (L1 arrest ~2 wk, adults ~12 d, mid-larvae ~1 wk.)
+          c.starving = true;
+          c.starveAge = 0;
+          c.starveMedHrs = (c.age < eggDur || sid === 'l1') ? 14 * 24
+            : (sid === 'adult' || sid === 'young_adult') ? 12 * 24
+            : 7 * 24;
+        }
       }
     }
 
@@ -1071,7 +1087,31 @@ function buildLifeTimeline(plate) {
     //    old-age death for adults, and dauer death after the survival limit.
     for (const c of cohorts) {
       if (c.dead) continue;
-      if (c.dauer) { c.dauerAge += DT; if (c.dauerAge >= DAUER_SURVIVAL) c.dead = true; continue; }
+      // Dauer: robust for most of the survival window, then a GRADUAL die-off (not all
+      // at once) as they exhaust lipid stores toward the ~4-month limit.
+      if (c.dauer) {
+        c.dauerAge += DT;
+        const frac = c.dauerAge / DAUER_SURVIVAL;
+        if (frac > 0.5) {
+          const hzPerDay = 0.02 + 0.18 * Math.min(1, (frac - 0.5) / 0.6);   // ramps up
+          const d = c.count * (1 - Math.exp(-hzPerDay * (DT / 24)));
+          c.count -= d; agedDead += d;
+          if (c.count < 0.01) c.dead = true;
+        }
+        continue;
+      }
+      // Starvation: GRADUAL death — worms linger for days/weeks after food runs out
+      // rather than dying simultaneously. An accelerating (Weibull-like) hazard gives a
+      // smooth die-off with NO long tail and NO single-step batch death.
+      if (c.starving) {
+        c.starveAge += DT;
+        const frac = c.starveAge / c.starveMedHrs;
+        const mu = (Math.LN2 / c.starveMedHrs) * (1 + frac * frac);
+        const d = c.count * (1 - Math.exp(-mu * DT));
+        c.count -= d; agedDead += d;
+        if (c.count < 0.01) c.dead = true;
+        continue;          // starving worms don't develop or die of old age
+      }
       c.age += DT;
       // Age-specific old-age mortality: a FRACTION of each adult cohort dies each
       // step per the Gompertz hazard (rises with adult age) → smooth survival curve.
@@ -1086,14 +1126,16 @@ function buildLifeTimeline(plate) {
 
     // 6) Merge cohorts to keep it fast (group living by ~age bucket; pool dauer/dead)
     if (cohorts.length > 300) {
-      const buckets = {}; let dPool = 0, xPool = 0, dAgeMax = 0;
+      const buckets = {}; let dPool = 0, xPool = 0, dAgeMax = 0; const starvingKeep = [];
       for (const c of cohorts) {
         if (c.dead) { xPool += c.count; continue; }
         if (c.dauer) { dPool += c.count; dAgeMax = Math.max(dAgeMax, c.dauerAge ?? 0); continue; }
+        if (c.starving) { starvingKeep.push(c); continue; }   // keep starvation state intact
         const key = Math.round(c.age / DT);
         buckets[key] = (buckets[key] ?? 0) + c.count;
       }
       cohorts = Object.entries(buckets).map(([k, count]) => ({ age: +k * DT, count, dauer: false, dead: false, dauerAge: 0 }));
+      cohorts.push(...starvingKeep);
       if (dPool > 0) cohorts.push({ age: 0, count: dPool, dauer: true, dead: false, dauerAge: dAgeMax });
       if (xPool > 0) cohorts.push({ age: 0, count: xPool, dauer: false, dead: true, dauerAge: 0 });
     }
@@ -1289,9 +1331,6 @@ function _initGrowthSimulator(plate, startHrs) {
   const stages    = getStages(plate.strainId, plate.tempC);
   const totalHrs  = stages[stages.length - 1].end;
   const adultStage = stages.find(s => s.id === 'adult') ?? stages[stages.length - 1];
-  // Cap the simulation at 30 days. You can watch eggs hatch, generations grow,
-  // and adults die of age (long-lived strains persist much longer).
-  const maxHrs    = 30 * 24;
   const maxEggs   = (STRAINS[plate.strainId] ?? STRAINS.N2).maxEggs;
   const initFood  = plate.initialFood ?? 0.5;
   const rate      = PlateTracker.CONSUMPTION_ML_PER_HR?.[plate.consumptionRate ?? 'standard'] ?? 0.0001;
@@ -1303,11 +1342,21 @@ function _initGrowthSimulator(plate, startHrs) {
   simCanvas.start();
   simCanvas.enableZoom(canvas);   // tap the sim plate to pinch/scroll-zoom & pan (updates live)
 
-  // Precompute the full 28-day population/food timeline ONCE (food depletes from
-  // the real growing population → realistic hatching, dauer, death).
-  const timeline = buildLifeTimeline(plate);
+  // Population/food timeline. Rebuilt when food is added in the simulator (preview only —
+  // never changes the real plate). maxHrs ends ~1 DAY after the colony is finished
+  // (the last living non-dauer worm / unhatched egg is gone → only dauer and/or dead).
+  const baseFood = plate.initialFood ?? 0.5;
+  let addedFood = 0;
+  let timeline = [], maxHrs = 48;
+  function rebuildTimeline() {
+    timeline = buildLifeTimeline(plate, baseFood + addedFood);
+    let lastActive = 0;
+    for (const s of timeline) if ((s.alive ?? 0) > 0.5 || (s.eggs ?? 0) > 0.5) lastActive = s.h;
+    maxHrs = Math.min(90 * 24, Math.max(48, lastActive + 24));
+  }
+  rebuildTimeline();
 
-  let simHrs = startHrs;
+  let simHrs = Math.min(startHrs, maxHrs);
   let speed  = 0;             // 0 = paused
   let raf    = null;
   let last   = performance.now();
@@ -1357,7 +1406,7 @@ function _initGrowthSimulator(plate, startHrs) {
 
     $('simStage').textContent = `${stage.icon} ${stage.name}`;
     $('simStage').style.color = stage.color;
-    $('simTime').textContent  = fmtHours(simHrs);
+    $('simTime').textContent  = `${fmtHours(simHrs)} · ${Math.round(simHrs)}h total`;
     $('simFood').textContent  = `${foodPct.toFixed(0)}%`;
     $('simFood').style.color  = foodPct > 40 ? '#5a9e32' : foodPct > 15 ? '#c08020' : '#ef4444';
     $('simEggs').textContent  = Math.round(snap.eggs).toLocaleString();
@@ -1366,6 +1415,7 @@ function _initGrowthSimulator(plate, startHrs) {
     $('simDead').textContent  = Math.round(snap.dead).toLocaleString();
     $('simNote').textContent  = note;
     $('simScrub').value       = (simHrs / maxHrs) * 100;
+    const af = $('simAddedFood'); if (af) af.textContent = addedFood > 0 ? `+${addedFood.toFixed(1)} mL added` : '';
 
     // Big box → vertical stage breakdown. Built ONCE, then bars update in place so
     // their width transitions animate smoothly (no per-frame innerHTML rebuild).
@@ -1420,7 +1470,17 @@ function _initGrowthSimulator(plate, startHrs) {
 
   $('simReset').onclick = () => {
     speed = 0; _setPlay(false);
-    simHrs = startHrs;
+    addedFood = 0; rebuildTimeline();    // reset food back to the plate's amount
+    simHrs = Math.min(startHrs, maxHrs);
+    render(true);
+  };
+
+  // Add food: +0.1 mL per click → rebuild the timeline (worms live longer) and the
+  // end time shifts to the new "all dead or in dauer" point. Preview only.
+  $('simAddFood').onclick = () => {
+    addedFood = Math.round((addedFood + 0.1) * 10) / 10;
+    rebuildTimeline();                   // all metrics now come from the new timeline
+    simHrs = Math.min(simHrs, maxHrs);
     render(true);
   };
 

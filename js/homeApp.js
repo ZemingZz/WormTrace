@@ -25,7 +25,43 @@ function openTab(tabId) {
   if (btn) btn.click();   // fires both desktop + mobile tab handlers
 }
 
+// ── Organism info ("ℹ What is…?" chips on the C. elegans / Drosophila home menus) ──
+const ORG_INFO = {
+  celegans: {
+    emoji: '🪱', name: 'Caenorhabditis elegans', tag: 'Free-living soil nematode (~1 mm)',
+    body: 'A transparent, mostly self-fertilizing roundworm and one of biology\'s premier model organisms — the first animal with a complete cell lineage (959 somatic cells) and a fully mapped nervous system (connectome). It grows on agar plates with an E. coli lawn, has a rapid ~3-day life cycle at 20 °C, and can be frozen and revived.',
+    uses: ['Aging & longevity (insulin/IGF–FOXO, dauer)', 'Development, cell fate & apoptosis', 'Neuroscience & behavior', 'Genetics & RNA interference (RNAi)', 'Drug / toxin & pathogen screening'],
+  },
+  drosophila: {
+    emoji: '🪰', name: 'Drosophila melanogaster', tag: 'The fruit fly',
+    body: 'A small fly with ~110 years of genetics behind it and an unmatched toolkit (GAL4/UAS, balancer chromosomes, huge public stock collections). Cheap and fast to rear in vials/bottles with a ~10-day egg-to-adult cycle at 25 °C, it bridges simple invertebrates and mammals.',
+    uses: ['Developmental biology & body patterning', 'Genetics & gene function (GAL4/UAS)', 'Neuroscience, behavior & circadian rhythms', 'Aging & metabolism (IIS / TOR)', 'Disease models & drug screening'],
+  },
+};
+function showOrgInfo(key) {
+  const o = ORG_INFO[key]; if (!o) return;
+  document.getElementById('orgInfoOverlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'orgInfoOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:1700;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(4px);overflow-y:auto';
+  ov.innerHTML = `<div style="background:#111827;border:1px solid #1e2a3a;border-radius:16px;max-width:420px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.8);margin:auto">
+      <div style="font-size:40px;text-align:center">${o.emoji}</div>
+      <div style="font-size:18px;font-weight:800;color:#e2e8f0;text-align:center"><i>${o.name}</i></div>
+      <div style="font-size:12px;color:#64748b;text-align:center;margin-bottom:12px">${o.tag}</div>
+      <div style="font-size:13px;color:#cbd5e1;line-height:1.6;margin-bottom:12px">${o.body}</div>
+      <div style="font-size:11px;font-weight:800;color:#00d4aa;letter-spacing:.05em;margin-bottom:6px">MOSTLY USED FOR</div>
+      <ul style="margin:0 0 16px 18px;padding:0;font-size:12.5px;color:#94a3b8;line-height:1.7">${o.uses.map(u => `<li>${u}</li>`).join('')}</ul>
+      <button id="orgInfoClose" style="width:100%;padding:12px;border-radius:10px;background:#1e2a3a;border:1px solid #2d3748;color:#e2e8f0;font-size:14px;font-weight:700;cursor:pointer">Got it</button>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector('#orgInfoClose').onclick = () => ov.remove();
+}
+
 function init() {
+  // Organism "ℹ What is…?" chips
+  document.querySelectorAll('[data-about]').forEach(b => b.addEventListener('click', () => showOrgInfo(b.dataset.about)));
+
   // Biotastic Lab boxes
   const hs = $el('homeScreen');
   if (hs) hs.querySelectorAll('[data-open-app]').forEach(b => b.addEventListener('click', () => {

@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=137';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=143';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -517,14 +517,20 @@ export class PlateCanvas {
     if (eggs.length > cap) { eggs.length = cap; return; }   // eggs hatched / plate reset
     let need = cap - eggs.length;
     if (need <= 0) return;
-    let add = need > 60 ? 3 : (need > 8 ? 2 : 1);           // mostly 1 at a time; mild catch-up
-    while (need > 0 && add > 0) { this._layOneEgg(); need--; add--; }
+    // Lay with RANDOM timing so eggs don't tick in on a clock: when only slightly
+    // behind, usually hold the egg for a later frame; when further behind, catch up
+    // so the running total still matches the simulation's laying rate.
+    let budget = need > 40 ? 4 : (need > 8 ? 2 : 1);
+    while (need > 0 && budget > 0) {
+      if (need <= 2 && Math.random() < 0.6) break;          // ~60% of frames wait → staggered laying
+      this._layOneEgg(); need--; budget--;
+    }
   }
 
   _drawEggsAt(ctx, cx, cy, maxR) {
     const eggs = this._eggs || [];
     const eggScale = this.canvas.width / 300;        // scales with the canvas (zoom-aware)
-    const rx = Math.max(0.9, 0.52 * eggScale), ry = Math.max(0.6, 0.34 * eggScale);   // ~3× smaller
+    const rx = Math.max(0.45, 0.26 * eggScale), ry = Math.max(0.32, 0.17 * eggScale);   // 2× smaller again
     for (const e of eggs) {
       ctx.beginPath();
       ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, rx, ry, e.rot, 0, Math.PI * 2);
