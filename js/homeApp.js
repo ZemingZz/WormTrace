@@ -11,13 +11,16 @@ const $el = id => document.getElementById(id);
 const showEl = id => { const e = $el(id); if (e) e.style.display = 'flex'; };
 const hideEl = id => { const e = $el(id); if (e) e.style.display = 'none'; };
 
-const ALL_OVERLAYS = ['homeScreen', 'celegansHome', 'labExp', 'labLit', 'drosophilaHome', 'flyExp', 'flyStock', 'flyPath', 'flyCulture'];
+const ALL_OVERLAYS = ['homeScreen', 'celegansHome', 'labExp', 'labLit', 'drosophilaHome', 'flyExp', 'flyStock', 'flyPath', 'flyCulture', 'flySim',
+  'yeastHome', 'yeastStock', 'yeastExp', 'yeastPath', 'yeastSim'];
 function showApp() { ALL_OVERLAYS.forEach(hideEl); window.dispatchEvent(new Event('resize')); }
 function showBiotastic() { ALL_OVERLAYS.forEach(hideEl); showEl('homeScreen'); }
 function showCele() { ALL_OVERLAYS.forEach(hideEl); showEl('celegansHome'); }
 function showDroso() { ALL_OVERLAYS.forEach(hideEl); showEl('drosophilaHome'); }
+function showYeast() { ALL_OVERLAYS.forEach(hideEl); showEl('yeastHome'); }
 window.WormTraceShowCeleHome = showCele;        // used by experimentsApp's back button
 window.WormTraceShowDrosoHome = showDroso;      // used by flyExperimentsApp's back button
+window.WormTraceShowYeastHome = showYeast;      // used by yeast modules' back button
 
 function openTab(tabId) {
   showApp();
@@ -36,6 +39,11 @@ const ORG_INFO = {
     emoji: '🪰', name: 'Drosophila melanogaster', tag: 'The fruit fly',
     body: 'A small fly with ~110 years of genetics behind it and an unmatched toolkit (GAL4/UAS, balancer chromosomes, huge public stock collections). Cheap and fast to rear in vials/bottles with a ~10-day egg-to-adult cycle at 25 °C, it bridges simple invertebrates and mammals.',
     uses: ['Developmental biology & body patterning', 'Genetics & gene function (GAL4/UAS)', 'Neuroscience, behavior & circadian rhythms', 'Aging & metabolism (IIS / TOR)', 'Disease models & drug screening'],
+  },
+  yeast: {
+    emoji: '🧫', name: 'Saccharomyces cerevisiae', tag: "Budding yeast (baker's / brewer's yeast)",
+    body: 'A single-celled eukaryote and the simplest model with a true nucleus — the first eukaryote with a fully sequenced genome (1996). It grows fast (doubling ~90 min), is easy and cheap to culture, and has unrivalled genetics: a genome-wide deletion collection, easy homologous recombination, and switchable haploid/diploid life cycles.',
+    uses: ['Cell cycle, DNA repair & basic cell biology', 'Genetics & functional genomics (deletion collection)', 'Nutrient signaling & aging (TOR, Ras/PKA, sirtuins)', 'Synthetic biology & metabolic engineering', 'Drug-target & chemical-genetic screening'],
   },
 };
 function showOrgInfo(key) {
@@ -68,8 +76,17 @@ function init() {
     const which = b.dataset.openApp;
     if (which === 'celegans') showCele();
     else if (which === 'drosophila') showDroso();
+    else if (which === 'yeast') showYeast();
     else if (which === 'literature') { hideEl('homeScreen'); showEl('labLit'); }
   }));
+
+  // Yeast home boxes
+  const yh = $el('yeastHome');
+  if (yh) {
+    yh.querySelectorAll('[data-yeback]').forEach(b => b.addEventListener('click', showBiotastic));
+    yh.querySelectorAll('[data-yeexp]').forEach(b => b.addEventListener('click', () => { hideEl('yeastHome'); showEl('yeastExp'); }));
+    yh.querySelectorAll('[data-yeopen]').forEach(b => b.addEventListener('click', () => { hideEl('yeastHome'); showEl(b.dataset.yeopen); }));
+  }
 
   // Drosophila home boxes
   const dh = $el('drosophilaHome');

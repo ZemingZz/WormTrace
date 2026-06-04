@@ -2,10 +2,10 @@
  * ExportManager.js — multi-plate Excel export and training dataset download.
  */
 
-import { RealWorldData }   from './RealWorldData.js?v=143';
-import { MLEngine }        from './MLEngine.js?v=143';
-import { feedbackToExcelRows } from './Feedback.js?v=143';
-import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=143';
+import { RealWorldData }   from './RealWorldData.js?v=144';
+import { MLEngine }        from './MLEngine.js?v=144';
+import { feedbackToExcelRows } from './Feedback.js?v=144';
+import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=144';
 
 export class ExportManager {
   constructor(plateTracker) {

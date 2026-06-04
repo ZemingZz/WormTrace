@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css?v=143">
+  <link rel="stylesheet" href="css/iphone.css?v=144">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -821,6 +821,11 @@
       <div class="hl-bt"><i>Drosophila melanogaster</i></div>
       <div class="hl-bs">Stocks · Pathways · Experiments · Culture &amp; Climbing</div>
     </button>
+    <button class="hl-box" data-open-app="yeast" type="button">
+      <div class="hl-ic">🧫</div>
+      <div class="hl-bt"><i>Saccharomyces cerevisiae</i></div>
+      <div class="hl-bs">Strains · Pathways · Experiments · Growth simulator</div>
+    </button>
     <button class="hl-box" data-open-app="literature" type="button">
       <div class="hl-ic">📚</div>
       <div class="hl-bt">Literature</div>
@@ -864,6 +869,7 @@
   <button class="hl-about" data-about="drosophila" type="button">ℹ What is Drosophila?</button>
   <div class="hl-grid">
     <button class="hl-box" data-droexp type="button"><div class="hl-ic">📋</div><div class="hl-bt">Experiments &amp; Procedures</div><div class="hl-bs">Fly food, crosses &amp; assays</div></button>
+    <button class="hl-box" data-droopen="flySim" type="button"><div class="hl-ic">🔬</div><div class="hl-bt">Growth Simulator</div><div class="hl-bs">Vial life-cycle simulation</div></button>
     <button class="hl-box" data-droopen="flyStock" type="button"><div class="hl-ic">🧬</div><div class="hl-bt">Stock Collection</div><div class="hl-bs">Strains, genotypes &amp; lifespans</div></button>
     <button class="hl-box" data-droopen="flyPath" type="button"><div class="hl-ic">🔗</div><div class="hl-bt">Pathways</div><div class="hl-bs">Aging IIS / TOR network</div></button>
     <button class="hl-box" data-droopen="flyCulture" type="button"><div class="hl-ic">🍶</div><div class="hl-bt">Culture Tracker</div><div class="hl-bs">Vials/bottles &amp; flip schedule</div></button>
@@ -920,6 +926,57 @@
     <div id="flcCultures" class="le-view active"></div>
     <div id="flcActivity" class="le-view"></div>
   </div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA GROWTH SIMULATOR ══════════════════ -->
+<div id="flySim" class="flab">
+  <div class="le-bar">
+    <button class="le-home" type="button">🪰 Drosophila</button>
+    <div class="le-title">🔬 Growth Simulator</div>
+  </div>
+  <div class="le-body"><div id="flySimBody"></div></div>
+</div>
+
+<!-- ══════════════════ YEAST HOME (launcher-style sub-menu) ══════════════════ -->
+<div id="yeastHome" class="labhome" style="z-index:1450;display:none">
+  <button class="hl-back" data-yeback type="button">← 🏠 Biotastic Lab</button>
+  <h1 class="hl-title">🧫 <span class="hl-accent"><i>S. cerevisiae</i></span></h1>
+  <div class="hl-sub">Select a tool</div>
+  <button class="hl-about" data-about="yeast" type="button">ℹ What is budding yeast?</button>
+  <div class="hl-grid">
+    <button class="hl-box" data-yeexp type="button"><div class="hl-ic">📋</div><div class="hl-bt">Experiments &amp; Procedures</div><div class="hl-bs">Media, transformation, assays</div></button>
+    <button class="hl-box" data-yeopen="yeastSim" type="button"><div class="hl-ic">🔬</div><div class="hl-bt">Growth Simulator</div><div class="hl-bs">Flask OD600 &amp; aging</div></button>
+    <button class="hl-box" data-yeopen="yeastStock" type="button"><div class="hl-ic">🧬</div><div class="hl-bt">Stock Collection</div><div class="hl-bs">Strains &amp; replicative lifespan</div></button>
+    <button class="hl-box" data-yeopen="yeastPath" type="button"><div class="hl-ic">🔗</div><div class="hl-bt">Pathways</div><div class="hl-bs">Aging TOR / PKA / Sir2 network</div></button>
+  </div>
+</div>
+
+<!-- ══════════════════ YEAST EXPERIMENTS & PROCEDURES ══════════════════ -->
+<div id="yeastExp" class="flab">
+  <div class="le-bar"><button class="le-home" type="button">🧫 Yeast</button><div class="le-title">📋 Experiments &amp; Procedures</div></div>
+  <div class="le-tabs">
+    <button class="le-tab" data-letab="yeExperiments" type="button">🧪 Experiments</button>
+    <button class="le-tab active" data-letab="yeProcedures" type="button">📋 Procedures</button>
+  </div>
+  <div class="le-body"><div id="yeExperiments" class="le-view"></div><div id="yeProcedures" class="le-view active"></div></div>
+</div>
+
+<!-- ══════════════════ YEAST STOCK COLLECTION ══════════════════ -->
+<div id="yeastStock" class="flab">
+  <div class="le-bar"><button class="le-home" type="button">🧫 Yeast</button><div class="le-title">🧬 Stock Collection</div></div>
+  <div class="le-body"><div id="yeastStockBody"></div></div>
+</div>
+
+<!-- ══════════════════ YEAST PATHWAYS ══════════════════ -->
+<div id="yeastPath" class="flab">
+  <div class="le-bar"><button class="le-home" type="button">🧫 Yeast</button><div class="le-title">🔗 Pathways</div></div>
+  <div class="le-body"><div id="yeastPathBody"></div></div>
+</div>
+
+<!-- ══════════════════ YEAST GROWTH SIMULATOR ══════════════════ -->
+<div id="yeastSim" class="flab">
+  <div class="le-bar"><button class="le-home" type="button">🧫 Yeast</button><div class="le-title">🔬 Growth Simulator</div></div>
+  <div class="le-body"><div id="yeastSimBody"></div></div>
 </div>
 
 <!-- ══════════════════ EXPERIMENTS & PROCEDURES PROJECT ══════════════════ -->
@@ -1064,20 +1121,25 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=143"></script>
-<script type="module" src="js/experimentsApp.js?v=143"></script>
-<script type="module" src="js/flyExperimentsApp.js?v=143"></script>
-<script type="module" src="js/flyStockApp.js?v=143"></script>
-<script type="module" src="js/flyPathwaysApp.js?v=143"></script>
-<script type="module" src="js/flyTrackersApp.js?v=143"></script>
-<script type="module" src="js/literatureApp.js?v=143"></script>
-<script type="module" src="js/app.js?v=143"></script>
-<script type="module" src="js/plateApp.js?v=143"></script>
-<script type="module" src="js/countApp.js?v=143"></script>
-<script type="module" src="js/collectionApp.js?v=143"></script>
-<script type="module" src="js/pathwaysApp.js?v=143"></script>
+<script type="module" src="js/homeApp.js?v=144"></script>
+<script type="module" src="js/experimentsApp.js?v=144"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=144"></script>
+<script type="module" src="js/flyStockApp.js?v=144"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=144"></script>
+<script type="module" src="js/flyTrackersApp.js?v=144"></script>
+<script type="module" src="js/flySimApp.js?v=144"></script>
+<script type="module" src="js/yeastStockApp.js?v=144"></script>
+<script type="module" src="js/yeastExperimentsApp.js?v=144"></script>
+<script type="module" src="js/yeastPathwaysApp.js?v=144"></script>
+<script type="module" src="js/yeastSimApp.js?v=144"></script>
+<script type="module" src="js/literatureApp.js?v=144"></script>
+<script type="module" src="js/app.js?v=144"></script>
+<script type="module" src="js/plateApp.js?v=144"></script>
+<script type="module" src="js/countApp.js?v=144"></script>
+<script type="module" src="js/collectionApp.js?v=144"></script>
+<script type="module" src="js/pathwaysApp.js?v=144"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=143';
+  import { initMobile } from './js/mobile.js?v=144';
   initMobile();
 </script>
 </body>

@@ -95,11 +95,58 @@ const LIT = {
       ],
     },
   ],
+
+  yeast: [
+    {
+      group: '🧫 Protocols (Experiments & Procedures)',
+      items: [
+        { title: 'YPD rich medium', by: 'Cold Spring Harbor Protocols', url: 'http://cshprotocols.cshlp.org/content/2010/9/pdb.rec12315' },
+        { title: 'Synthetic complete (SC/SD) medium', by: 'Cold Spring Harbor Protocols', url: 'http://cshprotocols.cshlp.org/content/2016/12/pdb.rec090589' },
+        { title: 'LiAc/SS-DNA/PEG transformation', by: 'Gietz & Schiestl (2007) — Nat. Protoc. 2:31', url: 'https://www.nature.com/articles/nprot.2007.13' },
+        { title: 'Tetrad dissection & sporulation', by: 'Cold Spring Harbor Protocols', url: 'http://cshprotocols.cshlp.org/content/2017/11/pdb.prot088824' },
+      ],
+    },
+    {
+      group: '🧪 Experiments & assays',
+      items: [
+        { title: 'Growth & the cell cycle (OD600, doubling time)', by: 'Sherman (2002) Getting started with yeast — Methods Enzymol. 350:3', url: 'https://pubmed.ncbi.nlm.nih.gov/12073320/' },
+        { title: 'Spot / drop serial-dilution assay', by: 'Cold Spring Harbor Protocols', url: 'http://cshprotocols.cshlp.org/content/2016/11/pdb.prot088989' },
+        { title: 'Replicative lifespan by microdissection', by: 'Steffen, Kennedy & Kaeberlein (2009) — JoVE 28:1209', url: 'https://www.jove.com/t/1209' },
+        { title: 'Chronological lifespan (CLS)', by: 'Fabrizio & Longo (2007) — Methods Mol. Biol. 371:89', url: 'https://pubmed.ncbi.nlm.nih.gov/17634576/' },
+      ],
+    },
+    {
+      group: '🔗 Aging pathways (TOR / PKA / sirtuins)',
+      items: [
+        { title: 'Lessons on longevity from budding yeast (review)', by: 'Kaeberlein (2010) Nature 464:513', url: 'https://www.nature.com/articles/nature08981' },
+        { title: 'Replicative & chronological aging in yeast (review)', by: 'Longo et al. (2012) Cell Metab. 16:18', url: 'https://pubmed.ncbi.nlm.nih.gov/22768836/' },
+        { title: 'TOR & Sch9 regulate replicative life span', by: 'Kaeberlein et al. (2005) Science 310:1193', url: 'https://www.science.org/doi/10.1126/science.1115535' },
+        { title: 'SIR2 & life span (rDNA silencing)', by: 'Kaeberlein, McVey & Guarente (1999) Genes Dev. 13:2570', url: 'https://pubmed.ncbi.nlm.nih.gov/10521401/' },
+        { title: 'Fob1 / ERCs drive replicative aging', by: 'Defossez et al. (1999) Mol. Cell 3:447', url: 'https://pubmed.ncbi.nlm.nih.gov/10198633/' },
+        { title: 'Ras/Sch9 & chronological survival', by: 'Fabrizio et al. (2001) Science 292:288', url: 'https://www.science.org/doi/10.1126/science.1059497' },
+      ],
+    },
+    {
+      group: '📖 Methods & resources',
+      items: [
+        { title: 'Saccharomyces Genome Database (SGD)', by: 'Genome, gene & phenotype database', url: 'https://www.yeastgenome.org' },
+        { title: 'Designer deletion strains (BY series)', by: 'Brachmann et al. (1998) — Yeast 14:115', url: 'https://pubmed.ncbi.nlm.nih.gov/9483801/' },
+        { title: 'The yeast genome (6000 genes)', by: 'Goffeau et al. (1996) — Science 274:546', url: 'https://www.science.org/doi/10.1126/science.274.5287.546' },
+      ],
+    },
+    {
+      group: '🧬 Strain lifespan / aging data',
+      items: [
+        { title: 'Per-strain sources', by: 'Shown on each strain in the Yeast → Stock Collection', url: '' },
+      ],
+    },
+  ],
 };
 
 const ORGS = [
   { key: 'celegans',   label: '🪱 C. elegans' },
   { key: 'drosophila', label: '🪰 Drosophila' },
+  { key: 'yeast',      label: '🧫 Yeast' },
   { key: 'overlap',    label: '🔗 Overlap' },
 ];
 let curOrg = 'celegans';
