@@ -3,18 +3,18 @@
  * growth troubleshooter, and session management UI.
  */
 
-import { initPlateUI, renderPlateList, renderPlateDetail, pt } from './plateUI.js?v=108';
-import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=108';
-import { Troubleshooter }       from './Troubleshooter.js?v=108';
-import { SessionManager }       from './SessionManager.js?v=108';
-import { showToast, showConfirm } from './Toast.js?v=108';
-import { checkWelcome }          from './WelcomeScreen.js?v=108';
-import { showFeedback }          from './Feedback.js?v=108';
-import { RealWorldData, POINT_SCHEMA } from './RealWorldData.js?v=108';
-import { MLEngine }        from './MLEngine.js?v=108';
-import { ExportManager }   from './ExportManager.js?v=108';
-import { drawComparisonChart } from './ComparisonChart.js?v=108';
-import { openCompareModal }   from './CompareCharts.js?v=108';
+import { initPlateUI, renderPlateList, renderPlateDetail, pt } from './plateUI.js?v=131';
+import { STRAINS, getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=131';
+import { Troubleshooter }       from './Troubleshooter.js?v=131';
+import { SessionManager }       from './SessionManager.js?v=131';
+import { showToast, showConfirm } from './Toast.js?v=131';
+import { checkWelcome }          from './WelcomeScreen.js?v=131';
+import { showFeedback }          from './Feedback.js?v=131';
+import { RealWorldData, POINT_SCHEMA } from './RealWorldData.js?v=131';
+import { MLEngine }        from './MLEngine.js?v=131';
+import { ExportManager }   from './ExportManager.js?v=131';
+import { drawComparisonChart } from './ComparisonChart.js?v=131';
+import { openCompareModal }   from './CompareCharts.js?v=131';
 
 const ml = new MLEngine();
 const em = new ExportManager(pt);

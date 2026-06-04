@@ -677,7 +677,8 @@ function init() {
   }));
   le.querySelector('.le-home')?.addEventListener('click', () => {
     le.style.display = 'none';
-    const h = document.getElementById('homeScreen'); if (h) h.style.display = 'flex';
+    if (typeof window.WormTraceShowCeleHome === 'function') window.WormTraceShowCeleHome();
+    else { const h = document.getElementById('homeScreen'); if (h) h.style.display = 'flex'; }
   });
   renderProcs();
   renderExperiments();

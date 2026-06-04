@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css">
+  <link rel="stylesheet" href="css/iphone.css?v=131">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -46,13 +46,13 @@
     <button class="btn-secondary btn-sm" id="btnExportJSON" style="width:auto" disabled>⬇ JSON</button>
   </div>
 
-  <!-- ── Tab bar — Plate Tracker first ── -->
-  <div id="tabBar">
+  <!-- ── Tab bar (hidden — navigation is via the C. elegans home menu; buttons kept for switching) ── -->
+  <div id="tabBar" style="display:none">
     <button class="tab-btn active" data-tab="plateTab">🧫 Plate Tracker</button>
     <button class="tab-btn"        data-tab="motionTab">🔬 Movement Tracker</button>
     <button class="tab-btn"        data-tab="countTab">🔢 Worm Counter</button>
-    <button class="tab-btn"        data-tab="collectionTab">🧬 Worm Collection</button>
-    <button class="tab-btn"        data-tab="pathwaysTab">🔗 Pathways</button>
+    <button class="tab-btn"        data-tab="collectionTab">🔗 Worm Collection</button>
+    <button class="tab-btn"        data-tab="pathwaysTab">🧬 Pathways</button>
   </div>
 
   <!-- Tab content wrapper — takes remaining height, tabs swap inside -->
@@ -665,7 +665,7 @@
   <!-- ══════════════════ WORM COLLECTION TAB ══════════════════ -->
   <div id="collectionTab" class="tab-view" style="position:absolute;inset:0;overflow-y:auto">
     <div style="max-width:680px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px">
-      <div class="panel-title">🧬 Worm Collection</div>
+      <div class="panel-title">🔗 Worm Collection</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.5">
         Every strain we work with, with standardized research data. Edit any metric to match your own
         observations — changes save automatically. Press <b>Standardize all</b> to reset edits back to
@@ -678,7 +678,7 @@
   <!-- ══════════════════ PATHWAYS TAB ══════════════════ -->
   <div id="pathwaysTab" class="tab-view" style="position:absolute;inset:0;overflow-y:auto">
     <div style="max-width:680px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px">
-      <div class="panel-title">🔗 Pathways</div>
+      <div class="panel-title">🧬 Pathways</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.5">
         Major aging, stress &amp; dauer signalling pathways. Any worm in your collection linked to a
         gene in a pathway is tagged on that step — tap a worm chip to see its data.
@@ -704,10 +704,10 @@
     <span class="mnav-icon">🔢</span><span class="mnav-label">Counter</span>
   </button>
   <button class="mobile-tab-btn" data-tab="collectionTab">
-    <span class="mnav-icon">🧬</span><span class="mnav-label">Worms</span>
+    <span class="mnav-icon">🔗</span><span class="mnav-label">Worms</span>
   </button>
   <button class="mobile-tab-btn" data-tab="pathwaysTab">
-    <span class="mnav-icon">🔗</span><span class="mnav-label">Pathways</span>
+    <span class="mnav-icon">🧬</span><span class="mnav-label">Pathways</span>
   </button>
 </div>
 
@@ -785,25 +785,26 @@
 </div>
 
 <!-- ══════════════════ "MY LAB" HOME / LAUNCHER (shown on boot) ══════════════════ -->
-<div id="homeScreen">
+<div id="homeScreen" class="labhome" style="z-index:1500">
   <style>
-    #homeScreen{position:fixed;inset:0;z-index:1500;background:radial-gradient(circle at 50% 28%, #0f1b2e, #060912 72%);
+    .labhome{position:fixed;inset:0;background:radial-gradient(circle at 50% 28%, #0f1b2e, #060912 72%);
       display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
-    #homeScreen .hl-title{font-size:32px;font-weight:800;color:#e2e8f0;letter-spacing:.5px;margin:0}
-    #homeScreen .hl-accent{color:#00d4aa}
-    #homeScreen .hl-sub{font-size:13px;color:#64748b;margin:6px 0 26px}
-    #homeScreen .hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,210px));gap:18px;justify-content:center;width:100%;max-width:680px}
-    #homeScreen .hl-box{aspect-ratio:1;border-radius:20px;border:1.5px solid #1e2a3a;background:linear-gradient(160deg,#101a2c,#0a0e1a);
-      cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px;text-align:center;
+    .hl-title{font-size:31px;font-weight:800;color:#e2e8f0;letter-spacing:.5px;margin:0;text-align:center}
+    .hl-accent{color:#00d4aa}
+    .hl-sub{font-size:13px;color:#64748b;margin:6px 0 26px;text-align:center}
+    .hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,200px));gap:16px;justify-content:center;width:100%;max-width:690px}
+    .hl-box{aspect-ratio:1;border-radius:20px;border:1.5px solid #1e2a3a;background:linear-gradient(160deg,#101a2c,#0a0e1a);
+      cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;text-align:center;
       transition:transform .14s,border-color .14s,box-shadow .14s;color:#e2e8f0;font-family:inherit}
-    #homeScreen .hl-box:hover{transform:translateY(-3px);border-color:#00d4aa;box-shadow:0 12px 40px rgba(0,212,170,.16)}
-    #homeScreen .hl-ic{font-size:46px;line-height:1}
-    #homeScreen .hl-bt{font-size:17px;font-weight:700}
-    #homeScreen .hl-bs{font-size:11px;color:#94a3b8;line-height:1.4}
-    #homeScreen .hl-box.soon{opacity:.6;border-style:dashed}
-    #homeScreen .hl-box.soon:hover{transform:none;border-color:#475569;box-shadow:none}
+    .hl-box:hover{transform:translateY(-3px);border-color:#00d4aa;box-shadow:0 12px 40px rgba(0,212,170,.16)}
+    .hl-ic{font-size:42px;line-height:1}
+    .hl-bt{font-size:16px;font-weight:700}
+    .hl-bs{font-size:11px;color:#94a3b8;line-height:1.4}
+    .hl-box.soon{opacity:.6;border-style:dashed}
+    .hl-box.soon:hover{transform:none;border-color:#475569;box-shadow:none}
+    .hl-back{position:absolute;top:14px;left:14px;background:#1e2a3a;border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset}
     #homeMsg{min-height:18px;font-size:12px;color:#facc15;margin-top:18px}
-    #homeScreen .hl-foot{margin-top:30px;display:flex;flex-direction:column;align-items:center;gap:5px}
+    .hl-foot{margin-top:30px;display:flex;flex-direction:column;align-items:center;gap:5px}
   </style>
   <h1 class="hl-title">🧪 Biotastic <span class="hl-accent">Lab</span></h1>
   <div class="hl-sub">Select a project</div>
@@ -811,12 +812,12 @@
     <button class="hl-box" data-open-app="celegans" type="button">
       <div class="hl-ic">🪱</div>
       <div class="hl-bt"><i>Caenorhabditis elegans</i></div>
-      <div class="hl-bs">Movement · Plates · Counter · Collection · Pathways</div>
+      <div class="hl-bs">Plates · Movement · Counter · Collection · Pathways · Experiments</div>
     </button>
-    <button class="hl-box" data-open-app="expproc" type="button">
-      <div class="hl-ic">📋</div>
-      <div class="hl-bt">Experiments &amp; Procedures</div>
-      <div class="hl-bs">Protocols &amp; experiment tracking</div>
+    <button class="hl-box" data-open-app="drosophila" type="button">
+      <div class="hl-ic">🪰</div>
+      <div class="hl-bt"><i>Drosophila melanogaster</i></div>
+      <div class="hl-bs">Stocks · Pathways · Experiments · Culture &amp; Climbing</div>
     </button>
     <button class="hl-box" data-open-app="literature" type="button">
       <div class="hl-ic">📚</div>
@@ -837,6 +838,86 @@
   </div>
 </div>
 
+<!-- ══════════════════ C. ELEGANS HOME (launcher-style sub-menu) ══════════════════ -->
+<div id="celegansHome" class="labhome" style="z-index:1450;display:none">
+  <button class="hl-back" data-ceback type="button">← 🏠 Biotastic Lab</button>
+  <h1 class="hl-title">🪱 <span class="hl-accent"><i>C. elegans</i></span></h1>
+  <div class="hl-sub">Select a tool</div>
+  <div class="hl-grid">
+    <button class="hl-box" data-cetab="plateTab" type="button"><div class="hl-ic">🧫</div><div class="hl-bt">Plate Tracker</div><div class="hl-bs">Plates, bins &amp; growth sim</div></button>
+    <button class="hl-box" data-cetab="motionTab" type="button"><div class="hl-ic">🔬</div><div class="hl-bt">Movement Tracker</div><div class="hl-bs">Video motion &amp; patterns</div></button>
+    <button class="hl-box" data-cetab="countTab" type="button"><div class="hl-ic">🔢</div><div class="hl-bt">Worm Counter</div><div class="hl-bs">Count &amp; label from photos</div></button>
+    <button class="hl-box" data-cetab="collectionTab" type="button"><div class="hl-ic">🔗</div><div class="hl-bt">Worm Collection</div><div class="hl-bs">Strain catalog &amp; lifespans</div></button>
+    <button class="hl-box" data-cetab="pathwaysTab" type="button"><div class="hl-ic">🧬</div><div class="hl-bt">Pathways</div><div class="hl-bs">Aging / dauer network</div></button>
+    <button class="hl-box" data-ceexp type="button"><div class="hl-ic">📋</div><div class="hl-bt">Experiments &amp; Procedures</div><div class="hl-bs">Protocols &amp; experiment tracking</div></button>
+  </div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA HOME (launcher-style sub-menu) ══════════════════ -->
+<div id="drosophilaHome" class="labhome" style="z-index:1450;display:none">
+  <button class="hl-back" data-droback type="button">← 🏠 Biotastic Lab</button>
+  <h1 class="hl-title">🪰 <span class="hl-accent"><i>Drosophila</i></span></h1>
+  <div class="hl-sub">Select a tool</div>
+  <div class="hl-grid">
+    <button class="hl-box" data-droexp type="button"><div class="hl-ic">📋</div><div class="hl-bt">Experiments &amp; Procedures</div><div class="hl-bs">Fly food, crosses &amp; assays</div></button>
+    <button class="hl-box" data-droopen="flyStock" type="button"><div class="hl-ic">🧬</div><div class="hl-bt">Stock Collection</div><div class="hl-bs">Strains, genotypes &amp; lifespans</div></button>
+    <button class="hl-box" data-droopen="flyPath" type="button"><div class="hl-ic">🔗</div><div class="hl-bt">Pathways</div><div class="hl-bs">Aging IIS / TOR network</div></button>
+    <button class="hl-box" data-droopen="flyCulture" type="button"><div class="hl-ic">🍶</div><div class="hl-bt">Culture Tracker</div><div class="hl-bs">Vials/bottles &amp; flip schedule</div></button>
+    <button class="hl-box" data-droopen="flyCulture" data-drotab="flcActivity" type="button"><div class="hl-ic">🪜</div><div class="hl-bt">Climbing &amp; Activity</div><div class="hl-bs">Negative-geotaxis tracking</div></button>
+  </div>
+  <div id="droMsg" style="min-height:18px;font-size:12px;color:#facc15;margin-top:14px"></div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA EXPERIMENTS & PROCEDURES ══════════════════ -->
+<div id="flyExp" class="flab">
+  <div class="le-bar">
+    <button class="le-home" type="button">🪰 Drosophila</button>
+    <div class="le-title">📋 Experiments &amp; Procedures</div>
+  </div>
+  <div class="le-tabs">
+    <button class="le-tab" data-letab="fleExperiments" type="button">🧪 Experiments</button>
+    <button class="le-tab active" data-letab="fleProcedures" type="button">📋 Procedures</button>
+  </div>
+  <div class="le-body">
+    <div id="fleExperiments" class="le-view"></div>
+    <div id="fleProcedures" class="le-view active"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA STOCK COLLECTION ══════════════════ -->
+<div id="flyStock" class="flab">
+  <div class="le-bar">
+    <button class="le-home" type="button">🪰 Drosophila</button>
+    <div class="le-title">🧬 Stock Collection</div>
+  </div>
+  <div class="le-body"><div id="flyStockBody"></div></div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA PATHWAYS ══════════════════ -->
+<div id="flyPath" class="flab">
+  <div class="le-bar">
+    <button class="le-home" type="button">🪰 Drosophila</button>
+    <div class="le-title">🔗 Pathways</div>
+  </div>
+  <div class="le-body"><div id="flyPathBody"></div></div>
+</div>
+
+<!-- ══════════════════ DROSOPHILA CULTURE & ACTIVITY TRACKERS ══════════════════ -->
+<div id="flyCulture" class="flab">
+  <div class="le-bar">
+    <button class="le-home" type="button">🪰 Drosophila</button>
+    <div class="le-title">🍶 Culture &amp; Activity</div>
+  </div>
+  <div class="le-tabs">
+    <button class="le-tab active" data-letab="flcCultures" type="button">🍶 Cultures</button>
+    <button class="le-tab" data-letab="flcActivity" type="button">🪜 Activity</button>
+  </div>
+  <div class="le-body">
+    <div id="flcCultures" class="le-view active"></div>
+    <div id="flcActivity" class="le-view"></div>
+  </div>
+</div>
+
 <!-- ══════════════════ EXPERIMENTS & PROCEDURES PROJECT ══════════════════ -->
 <div id="labExp">
   <style>
@@ -851,8 +932,14 @@
     #labExp .le-view{display:none;max-width:720px;margin:0 auto}
     #labExp .le-view.active{display:block}
     #labExp .le-intro{font-size:12px;color:#64748b;margin-bottom:12px;line-height:1.5}
-    #labExp .pc{background:#0f1623;border:1px solid #1e2a3a;border-radius:12px;margin-bottom:11px;overflow:hidden}
-    #labExp .pc-head{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:13px 14px;text-align:left}
+    #labExp .pc{background:#0f1623;border:1px solid #1e2a3a;border-radius:12px;margin-bottom:11px;overflow:hidden;transition:border-color .13s ease}
+    #labExp .pc:hover{border-color:#2c3e57}
+    #labExp .pc-head{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:13px 14px;text-align:left;transition:background .13s ease}
+    #labExp .pc-head:hover{background:#111a2b}
+    #labExp .pc-step{transition:border-color .12s ease}
+    #labExp .pc-step:hover{border-color:#33455f}
+    #labExp .pc-vchip{transition:border-color .12s ease,color .12s ease}
+    #labExp .pc-vchip:hover:not(.on){border-color:#3a4a63;color:#cbd5e1}
     #labExp .pc-ic{font-size:24px;flex-shrink:0}
     #labExp .pc-tt{flex:1;display:flex;flex-direction:column}
     #labExp .pc-title{font-size:15px;font-weight:700;color:#e2e8f0}
@@ -920,7 +1007,7 @@
     #labExp .le-empty-s{font-size:12px;color:#64748b;line-height:1.6;max-width:440px;margin:0 auto}
   </style>
   <div class="le-bar">
-    <button class="le-home" type="button">🏠 Biotastic Lab</button>
+    <button class="le-home" type="button">🪱 C. elegans</button>
     <div class="le-title">📋 Experiments &amp; Procedures</div>
   </div>
   <div class="le-tabs">
@@ -966,23 +1053,27 @@ document.addEventListener('DOMContentLoaded',function(){
     el.setAttribute('style',(el.getAttribute('style')||'').replace(/display\s*:\s*[^;]+;?/gi,'')+';display:none');
   });
   var pl=document.getElementById('platePanelList');if(pl)pl.style.display='flex';
-  var tb=document.getElementById('tabBar');if(tb)tb.style.display='flex';
+  var tb=document.getElementById('tabBar');if(tb)tb.style.display='none';
   ['tagChips','tagInput','btnAddTag'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
   document.querySelectorAll('.sbar-sep').forEach(function(e){e.style.display='none';});
   var mt=document.getElementById('motionTab');if(mt){mt.style.display='none';mt.style.flexDirection='column';mt.style.gridTemplateColumns='none';}
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=108"></script>
-<script type="module" src="js/experimentsApp.js?v=108"></script>
-<script type="module" src="js/literatureApp.js?v=108"></script>
-<script type="module" src="js/app.js?v=108"></script>
-<script type="module" src="js/plateApp.js?v=108"></script>
-<script type="module" src="js/countApp.js?v=108"></script>
-<script type="module" src="js/collectionApp.js?v=108"></script>
-<script type="module" src="js/pathwaysApp.js?v=108"></script>
+<script type="module" src="js/homeApp.js?v=131"></script>
+<script type="module" src="js/experimentsApp.js?v=131"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=131"></script>
+<script type="module" src="js/flyStockApp.js?v=131"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=131"></script>
+<script type="module" src="js/flyTrackersApp.js?v=131"></script>
+<script type="module" src="js/literatureApp.js?v=131"></script>
+<script type="module" src="js/app.js?v=131"></script>
+<script type="module" src="js/plateApp.js?v=131"></script>
+<script type="module" src="js/countApp.js?v=131"></script>
+<script type="module" src="js/collectionApp.js?v=131"></script>
+<script type="module" src="js/pathwaysApp.js?v=131"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=108';
+  import { initMobile } from './js/mobile.js?v=131';
   initMobile();
 </script>
 </body>

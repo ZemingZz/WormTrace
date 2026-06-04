@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=108';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=131';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -75,37 +75,74 @@ export class PlateCanvas {
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'plateZoomModal';
-      modal.style.cssText =
-        'position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:800;' +
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;' +
-        'touch-action:manipulation;';
       document.body.appendChild(modal);
     }
+    modal.style.cssText =
+      'position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:800;' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;touch-action:none;';
 
-    const size = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.75, 560);
+    const base = Math.round(Math.min(window.innerWidth * 0.9, window.innerHeight * 0.7, 520));
+    const bs = 'background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;cursor:pointer;min-height:unset;width:auto;border-radius:10px;';
     modal.innerHTML = `
-      <div style="font-size:13px;color:#64748b">Tap anywhere to close</div>
-      <canvas id="plateZoomCanvas" width="${size}" height="${size}"
-        style="border-radius:50%;box-shadow:0 0 60px rgba(0,212,170,0.2);display:block"></canvas>
-      <button style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
-        color:#fff;font-size:14px;padding:10px 28px;border-radius:24px;cursor:pointer;
-        min-height:unset;width:auto">Close ✕</button>`;
+      <div style="font-size:12px;color:#94a3b8">Pinch / scroll to zoom · drag to pan · tap outside to close</div>
+      <div id="pzScroll" style="overflow:auto;max-width:94vw;max-height:74vh;border-radius:18px;background:#000;-webkit-overflow-scrolling:touch;cursor:grab">
+        <canvas id="plateZoomCanvas" width="${base}" height="${base}" style="display:block;border-radius:50%"></canvas>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="pzOut" style="${bs}width:38px;height:38px;font-size:20px">−</button>
+        <button id="pzFit" style="${bs}height:38px;padding:0 14px;font-size:12px">Fit</button>
+        <button id="pzIn" style="${bs}width:38px;height:38px;font-size:20px">+</button>
+        <button id="pzClose" style="${bs}height:38px;padding:0 22px;font-size:14px">Close ✕</button>
+      </div>`;
     modal.style.display = 'flex';
 
+    const zc = document.getElementById('plateZoomCanvas');
+    const sc = document.getElementById('pzScroll');
+    let zoom = 1, active = true, down = false, sx = 0, sy = 0, sl = 0, st = 0, pinch = 0;
+    const MINZ = 1, MAXZ = 4;
+    const applyZoom = z => {
+      zoom = Math.max(MINZ, Math.min(MAXZ, z));
+      const px = Math.round(base * zoom);
+      if (zc.width !== px) { zc.width = px; zc.height = px; }   // re-render crisp at the new size
+      return zoom;
+    };
+    const zoomAt = (nz, clientX, clientY) => {
+      const r = sc.getBoundingClientRect();
+      const px = clientX - r.left + sc.scrollLeft, py = clientY - r.top + sc.scrollTop;
+      const old = zoom, k = applyZoom(nz) / old;
+      sc.scrollLeft = px * k - (clientX - r.left);
+      sc.scrollTop  = py * k - (clientY - r.top);
+    };
+    const center = () => { const r = sc.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+
+    const onMove = e => { if (!down) return; sc.scrollLeft = sl - (e.clientX - sx); sc.scrollTop = st - (e.clientY - sy); };
+    const onUp = () => { down = false; sc.style.cursor = 'grab'; };
     const closeModal = () => {
+      active = false;
       modal.style.display = 'none';
       this._zoomOpen = false;
-      // Restart animation if iOS paused it
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
       if (!this._raf) this.start();
     };
 
-    modal.querySelector('button').onclick = closeModal;
+    document.getElementById('pzClose').onclick = closeModal;
+    document.getElementById('pzIn').onclick  = () => zoomAt(zoom * 1.3, ...center());
+    document.getElementById('pzOut').onclick = () => zoomAt(zoom / 1.3, ...center());
+    document.getElementById('pzFit').onclick = () => applyZoom(1);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    sc.addEventListener('wheel', e => { e.preventDefault(); zoomAt(zoom * (e.deltaY < 0 ? 1.15 : 0.87), e.clientX, e.clientY); }, { passive: false });
+    sc.addEventListener('mousedown', e => { down = true; sx = e.clientX; sy = e.clientY; sl = sc.scrollLeft; st = sc.scrollTop; sc.style.cursor = 'grabbing'; });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const mid  = t => [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2];
+    sc.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = dist(e.touches); }, { passive: true });
+    sc.addEventListener('touchmove', e => { if (e.touches.length === 2 && pinch) { e.preventDefault(); const d = dist(e.touches); zoomAt(zoom * d / pinch, ...mid(e.touches)); pinch = d; } }, { passive: false });
+    sc.addEventListener('touchend', () => { pinch = 0; });
 
-    // Animate the zoom canvas
-    const zc = document.getElementById('plateZoomCanvas');
+    // Animate: own renderer, redrawing each frame at the current (zoomed) resolution.
     const zRenderer = new PlateCanvas(zc);
-    let active = true;
     const refresh = () => {
       if (!active || modal.style.display === 'none') { active = false; return; }
       zRenderer._t = this._t;
@@ -113,12 +150,6 @@ export class PlateCanvas {
       requestAnimationFrame(refresh);
     };
     requestAnimationFrame(refresh);
-
-    // Cleanup animation when modal closes (observe display change)
-    const obs = new MutationObserver(() => {
-      if (modal.style.display === 'none') { active = false; obs.disconnect(); }
-    });
-    obs.observe(modal, { attributes: true, attributeFilter: ['style'] });
   }
 
   /** Render a "no plate" placeholder. */
@@ -137,7 +168,7 @@ export class PlateCanvas {
 
   // ── Internal render ────────────────────────────────────────────────────────
 
-  _render({ plate, hrsElapsed = 0, stage, foodPct = 100, wormCount = 1, totalEggs = 0, inoculatedAt }) {
+  _render({ plate, hrsElapsed = 0, stage, foodPct = 100, wormCount = 1, totalEggs = 0, inoculatedAt, population }) {
     const { canvas: c, ctx } = this;
     const W = c.width, H = c.height;
     const cx = W / 2, cy = H / 2;
@@ -183,17 +214,19 @@ export class PlateCanvas {
         this._drawLawnTexture(ctx, cx, cy, lawnR * lawnScale, lawnColor);
       }
 
-      // ── Eggs on plate ────────────────────────────────────────────────────
-      if (totalEggs > 0 && stage) {
-        this._drawEggs(ctx, cx, cy, lawnR * lawnScale * 0.85, totalEggs);
+      const wormR = lawnR * (lawnScale > 0 ? lawnScale : 0.6) * 0.9;
+
+      // ── Eggs ── laid along the worms' (random) crawl paths; drawn under worms.
+      if (totalEggs > 0) {
+        this._updateEggs(totalEggs);
+        this._drawEggsAt(ctx, cx, cy, wormR);
       }
 
       // ── Worms ────────────────────────────────────────────────────────────
-      const wormR = lawnR * (lawnScale > 0 ? lawnScale : 0.6) * 0.9;
-      if (this._state.population && this._state.population.length) {
+      if (population && population.length) {
         // Mixed multi-generation population: round-robin interleave so stages mix
         const isDpy = (plate.strainId ?? 'N2') === 'dpy-13';
-        const groups = this._state.population.map(g => ({ ...g, left: g.count }));
+        const groups = population.map(g => ({ ...g, left: g.count }));
         const items = [];
         let remaining = groups.reduce((s, g) => s + g.left, 0);
         while (remaining > 0 && items.length < 200) {
@@ -228,19 +261,7 @@ export class PlateCanvas {
       ctx.fillText(foodPct <= 0 ? '⚠ FOOD EXHAUSTED' : '⚠ LOW FOOD', cx, cy - R + 22);
     }
 
-    // ── Corner stats (drawn in the BLACK corners OUTSIDE the circle) ─────────
-    if (plate.inoculatedAt) {
-      const ms  = Date.now() - plate.inoculatedAt;
-      const fp  = Math.max(0, foodPct);
-      const fC  = fp > 40 ? '#5a9e32' : fp > 15 ? '#c08020' : '#ef4444';
-      this._cornerText(ctx, W, H,
-        { tl: [`⏱ ${fmtElapsed(ms)}`, `${fmtHours(hrsElapsed)} dev`],
-          tr: [`${stage.icon} ${stage.name.split(' ')[0]}`, stage.name.split(' ').slice(1).join(' ')],
-          bl: [`🍽 ${fp.toFixed(0)}% food`, `🐛 ${wormCount} worm${wormCount!==1?'s':''}`],
-          br: totalEggs > 0 ? [`🥚 ${totalEggs} eggs`, ''] : null,
-        }, { tr: stage.color, bl: fC }
-      );
-    }
+    // (On-canvas corner stats removed — the plate detail panel already shows this info.)
 
     // ── Not inoculated overlay ────────────────────────────────────────────────
     if (!plate.inoculatedAt) {
@@ -335,22 +356,50 @@ export class PlateCanvas {
     ctx.fillStyle = color; ctx.fill();
   }
 
-  /** Lay out a list of worms (each {stageId,color}) in a golden-angle spiral. */
+  /** Lay out a list of worms (each {stageId,color}) as independent RANDOM-WALK agents.
+   *  Each worm keeps a persistent normalised position/heading on `this._agents` and
+   *  wanders the lawn, gently steering back when it nears the edge. Worm size scales
+   *  with the canvas (so the zoom modal renders bigger worms) and is ~3× smaller than
+   *  before, keeping the plate readable and worth zooming into. */
   _layoutWorms(ctx, cx, cy, maxR, items, isDpy) {
     const t = this._t;
     const drawCount = Math.min(items.length, 160);
+
+    // Persistent agents (position is normalised to the lawn radius, -1..1).
+    const A = this._agents || (this._agents = []);
+    if (A.length < drawCount) {
+      for (let i = A.length; i < drawCount; i++) {
+        const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.85;
+        A.push({ nx: Math.cos(ang) * rr, ny: Math.sin(ang) * rr, dir: Math.random() * Math.PI * 2,
+                 spd: 0.00055 + Math.random() * 0.00075, ph: Math.random() * Math.PI * 2 });
+      }
+    } else if (A.length > drawCount) {
+      A.length = drawCount;
+    }
+
+    // 3× smaller than the old fixed sizes, and proportional to the canvas → zoom enlarges.
+    const sizeScale = (this.canvas.width / 300) / 3;
+
     for (let i = 0; i < drawCount; i++) {
-      const it = items[i];
-      const [wLen, wWid] = this._wormSize(it.stageId, isDpy);
-      const phi = i * 2.399963;
-      const rr  = maxR * Math.sqrt((i + 1) / drawCount) * 0.88 + maxR * 0.04;
-      const wx  = cx + Math.cos(phi) * rr;
-      const wy  = cy + Math.sin(phi) * rr;
-      const swimPhase = t * 0.07 + i * 1.3;
-      const baseAngle = phi + Math.PI / 2 + Math.sin(t * 0.02 + i * 0.5) * 0.4;
+      const it = items[i], ag = A[i];
+      // Random walk: gently jitter the heading, step forward, steer back inside the lawn.
+      ag.dir += (Math.random() - 0.5) * 0.22;
+      ag.nx += Math.cos(ag.dir) * ag.spd;
+      ag.ny += Math.sin(ag.dir) * ag.spd;
+      const r = Math.hypot(ag.nx, ag.ny);
+      if (r > 0.9) {
+        const posAng = Math.atan2(ag.ny, ag.nx);
+        ag.nx = Math.cos(posAng) * 0.9;
+        ag.ny = Math.sin(posAng) * 0.9;
+        ag.dir = posAng + Math.PI + (Math.random() - 0.5) * 0.6;   // turn back toward centre
+      }
+      let [wLen, wWid] = this._wormSize(it.stageId, isDpy);
+      wLen *= sizeScale; wWid *= sizeScale;
+      const wx = cx + ag.nx * maxR, wy = cy + ag.ny * maxR;
+      const swimPhase = t * 0.06 + ag.ph;
       ctx.save();
       ctx.translate(wx, wy);
-      ctx.rotate(baseAngle);
+      ctx.rotate(ag.dir);                 // head points the way it's crawling
       this._drawOneWorm(ctx, wLen, wWid, it.color, swimPhase);
       ctx.restore();
     }
@@ -402,44 +451,40 @@ export class PlateCanvas {
     if (corners.br) _draw(corners.br, W - PAD, H - PAD - (corners.br?.length ?? 0) * LINE - PAD, 'right', colorOverrides.br ?? '#fbbf24');
   }
 
-  _drawEggs(ctx, cx, cy, maxR, totalEggs) {
-    // Eggs are laid in CLUMPS at scattered spots (like a real plate), not a spiral.
-    // Deterministic pseudo-random so they stay put between frames (no jitter).
-    const rand = (s) => { const x = Math.sin(s * 91.7) * 43758.5453; return x - Math.floor(x); };
-    const drawCount = Math.min(totalEggs, 130);
-    if (drawCount < 1) return;
-
-    // A handful of clump centres scattered across the lawn
-    const nClumps = Math.max(1, Math.min(Math.ceil(drawCount / 7), 16));
-    const clumps = [];
-    for (let k = 0; k < nClumps; k++) {
-      const ang = rand(k * 7.13 + 1.1) * Math.PI * 2;
-      const rad = maxR * (0.12 + rand(k * 3.37 + 2.2) * 0.80);
-      clumps.push([cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad]);
+  /** Maintain the persistent egg list so eggs are dropped where worms have crawled.
+   *  Each egg is stored in normalised lawn coords with a random rotation, so it stays
+   *  put once laid. New eggs appear at a random worm's CURRENT position (its path);
+   *  if no worms are present yet, they fall on random spots. */
+  _updateEggs(totalEggs) {
+    const eggs = this._eggs || (this._eggs = []);
+    const cap = Math.min(totalEggs, 140);
+    if (eggs.length > cap) eggs.length = cap;        // eggs hatched / plate reset
+    const ags = this._agents;
+    while (eggs.length < cap) {
+      let nx, ny;
+      if (ags && ags.length) {
+        const a = ags[Math.floor(Math.random() * ags.length)];   // a worm's current path point
+        nx = a.nx + (Math.random() - 0.5) * 0.05;
+        ny = a.ny + (Math.random() - 0.5) * 0.05;
+      } else {
+        const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.82;
+        nx = Math.cos(ang) * rr; ny = Math.sin(ang) * rr;
+      }
+      eggs.push({ nx, ny, rot: Math.random() * Math.PI });
     }
+  }
 
-    for (let i = 0; i < drawCount; i++) {
-      const c = clumps[i % nClumps];
-      const spread = maxR * 0.16;                       // tight clustering
-      const ex = c[0] + (rand(i * 1.71 + 0.3) - 0.5) * spread;
-      const ey = c[1] + (rand(i * 2.93 + 0.7) - 0.5) * spread;
-      const rot = rand(i * 5.31 + 0.9) * Math.PI;
-      // C. elegans egg: small pale-translucent oval
+  _drawEggsAt(ctx, cx, cy, maxR) {
+    const eggs = this._eggs || [];
+    const eggScale = this.canvas.width / 300;        // scales with the canvas (zoom-aware)
+    for (const e of eggs) {
       ctx.beginPath();
-      ctx.ellipse(ex, ey, 2.2, 1.5, rot, 0, Math.PI * 2);
+      ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, 2.2 * eggScale, 1.5 * eggScale, e.rot, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(247,238,200,0.9)';
       ctx.fill();
       ctx.strokeStyle = 'rgba(170,140,70,0.45)';
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 0.5 * eggScale;
       ctx.stroke();
-    }
-
-    if (totalEggs > 130) {
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = '#fbbf24';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText(`🥚 ×${totalEggs}`, cx + maxR - 4, cy - maxR * 0.85);
     }
   }
 }

@@ -72,12 +72,16 @@ header .spacer   { flex: 1; }
 #sessionBar::-webkit-scrollbar { display: none; }
 /* hide non-essential items on iPhone */
 .sbar-sep, #tagChips, #tagInput, #btnAddTag { display: none !important; }
+/* Centered header section-title overlaps the back/home buttons on a phone-width
+   screen — hide it there (the bottom nav already shows the active section);
+   it stays visible on wider screens. */
+@media (max-width: 500px) { #hdrTitle { display: none !important; } }
 #sessionNameInput { flex: 1; min-width: 100px; font-size: 14px; padding: 5px 8px; }
 #btnSaveSession   { font-size: 12px; white-space: nowrap; }
 
 /* ── Tab bar — visible on mobile, styled as large touch targets ─────────── */
 #tabBar {
-  display: flex !important;
+  display: none !important;   /* navigation is via the C. elegans home menu */
   background: #070b14;
   border-bottom: 2px solid var(--border);
   flex-shrink: 0;
@@ -515,3 +519,103 @@ textarea { resize: vertical; min-height: 56px; }
 /* Growth simulator buttons */
 .sim-btn { background:#0f172a; border:1px solid var(--border); color:var(--muted); border-radius:7px; padding:7px 11px; font-size:13px; font-weight:700; cursor:pointer; min-height:38px; width:auto; }
 .sim-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── UI polish: consistent affordances + calmer card radii across tabs ─────── */
+.worm-item, .stat-box { border-radius: 10px; }          /* unify with other cards (10px) */
+.plate-item, .worm-item, .worm-tile, .pattern-card {
+  transition: transform .13s ease, border-color .13s ease, box-shadow .13s ease;
+}
+.plate-item:hover, .worm-item:hover, .worm-tile:hover {  /* clickable cards lift slightly */
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 212, 170, .12);
+}
+.plate-item.selected, .worm-item.selected {             /* clearer selected state */
+  box-shadow: inset 0 0 0 1px var(--accent), 0 6px 16px rgba(0, 212, 170, .13);
+}
+
+/* ── Drosophila project overlays — shared .flab component styles (mirrors #labExp) ── */
+    .flab{position:fixed;inset:0;z-index:1400;background:#0a0e1a;display:none;flex-direction:column}
+    .flab .le-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1e2a3a;background:#0d1424;flex-shrink:0}
+    .flab .le-home{background:#1e2a3a;border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset;flex-shrink:0}
+    .flab .le-title{font-size:15px;font-weight:700;color:#e2e8f0}
+    .flab .le-tabs{display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid #1e2a3a;background:#0b1220;flex-shrink:0}
+    .flab .le-tab{background:#111a2b;border:1px solid #1e2a3a;color:#94a3b8;border-radius:9px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset}
+    .flab .le-tab.active{background:#00d4aa;border-color:#00d4aa;color:#04201a}
+    .flab .le-body{flex:1;min-height:0;overflow-y:auto;padding:14px}
+    .flab .le-view{display:none;max-width:720px;margin:0 auto}
+    .flab .le-view.active{display:block}
+    .flab .le-intro{font-size:12px;color:#64748b;margin-bottom:12px;line-height:1.5}
+    .flab .pc{background:#0f1623;border:1px solid #1e2a3a;border-radius:12px;margin-bottom:11px;overflow:hidden;transition:border-color .13s ease}
+    .flab .pc:hover{border-color:#2c3e57}
+    .flab .pc-head{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:13px 14px;text-align:left;transition:background .13s ease}
+    .flab .pc-head:hover{background:#111a2b}
+    .flab .pc-step{transition:border-color .12s ease}
+    .flab .pc-step:hover{border-color:#33455f}
+    .flab .pc-vchip{transition:border-color .12s ease,color .12s ease}
+    .flab .pc-vchip:hover:not(.on){border-color:#3a4a63;color:#cbd5e1}
+    .flab .pc-ic{font-size:24px;flex-shrink:0}
+    .flab .pc-tt{flex:1;display:flex;flex-direction:column}
+    .flab .pc-title{font-size:15px;font-weight:700;color:#e2e8f0}
+    .flab .pc-tag{font-size:11px;color:#64748b}
+    .flab .pc-prog{font-size:11px;font-weight:700;color:#94a3b8;background:#1e2a3a;border-radius:10px;padding:2px 8px}
+    .flab .pc-prog.full{color:#04201a;background:#34d399}
+    .flab .pc-car{color:#64748b;font-size:13px;width:14px;text-align:center}
+    .flab .pc-body{padding:0 14px 14px}
+    .flab .pc-purpose{font-size:12px;color:#cbd5e1;line-height:1.5;margin-bottom:10px}
+    .flab .pc-sec{font-size:10px;font-weight:800;letter-spacing:.05em;color:#64748b;margin:10px 0 5px;text-transform:uppercase}
+    .flab .pc-pct{color:#34d399;margin-left:6px}
+    .flab .pc-vol{display:flex;align-items:center;flex-wrap:wrap;gap:7px;background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+    .flab .pc-vol-lbl{font-size:12px;font-weight:700;color:#cbd5e1}
+    .flab .pc-vol-in{width:84px;background:#0a0e1a;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:5px 7px;font-size:13px;min-height:unset}
+    .flab .pc-vol-u{font-size:11px;color:#64748b}
+    .flab .pc-vol-presets{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+    .flab .pc-vchip{font-size:11px;background:#111a2b;border:1px solid #2d3748;color:#94a3b8;border-radius:14px;padding:3px 10px;cursor:pointer;width:auto;min-height:unset}
+    .flab .pc-vchip.on{background:#00d4aa;border-color:#00d4aa;color:#04201a;font-weight:700}
+    .flab .pc-yield{font-size:11.5px;color:#34d399;background:#052e22;border:1px solid #16734f;border-radius:8px;padding:7px 10px;margin:-4px 0 10px}
+    .flab .pc-yield b{color:#e2e8f0}
+    .flab .pc-firm{display:flex;align-items:center;flex-wrap:wrap;gap:9px;background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+    .flab .pc-firm-lbl{font-size:12px;font-weight:700;color:#cbd5e1}
+    .flab .pc-firm-in{flex:1;min-width:120px;accent-color:#00d4aa;min-height:unset;width:auto}
+    .flab .pc-firm-val{font-size:11px;color:#34d399;font-weight:700;white-space:nowrap}
+    .flab .pc-timer{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#161b26;border:1px solid #7c5e1a;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+    .flab .pc-timer-lbl{font-size:12px;font-weight:700;color:#fbbf24}
+    .flab .pc-timer-min{width:60px;background:#0a0e1a;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:5px 7px;font-size:13px;min-height:unset}
+    .flab .pc-timer-disp{font-family:monospace;font-size:18px;font-weight:800;color:#e2e8f0;margin-left:auto;min-width:62px;text-align:right}
+    .flab .pc-timer-disp.done{color:#f87171;animation:pcblink 1s steps(2,start) infinite}
+    @keyframes pcblink{50%{opacity:.35}}
+    .flab .pc-timer-btn{font-size:12px;font-weight:700;background:#00d4aa;border:none;color:#04201a;border-radius:7px;padding:6px 12px;cursor:pointer;width:auto;min-height:unset}
+    .flab .pc-timer-rst{font-size:13px;background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8;border-radius:7px;padding:6px 10px;cursor:pointer;width:auto;min-height:unset}
+    .flab .pc-mat{margin:0;padding-left:18px;font-size:12px;color:#94a3b8;line-height:1.6}
+    .flab .pc-steps{display:flex;flex-direction:column;gap:5px}
+    .flab .pc-step{display:flex;align-items:flex-start;gap:9px;background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;color:#cbd5e1;font-size:12.5px;line-height:1.45}
+    .flab .pc-step.done{opacity:.6}
+    .flab .pc-step.done .pc-stext{text-decoration:line-through}
+    .flab .pc-box{flex-shrink:0;width:18px;height:18px;border:1.5px solid #2d3748;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#34d399;font-size:12px;font-weight:800}
+    .flab .pc-step.done .pc-box{background:#052e22;border-color:#16734f}
+    .flab .pc-notes{font-size:11px;color:#94a3b8;line-height:1.5;margin-top:11px;background:#161b26;border:1px solid #2d3748;border-radius:8px;padding:8px 10px}
+    .flab .pc-src{font-size:11px;color:#64748b;margin-top:8px}
+    .flab .pc-src a{color:#38bdf8;text-decoration:underline}
+    .flab .pc-goto-row{margin:-2px 0 5px 27px}
+    .flab .pc-goto{font-size:11px;font-weight:700;background:#0c2433;border:1px solid #1f5169;color:#38bdf8;border-radius:7px;padding:4px 10px;cursor:pointer;width:auto;min-height:unset}
+    .flab .trk{background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:9px 10px}
+    .flab .trk-top{font-size:11px;color:#94a3b8;margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .flab .trk-sum{margin-left:auto;color:#64748b}
+    .flab .trk-tbl{width:100%;border-collapse:collapse;font-size:12px}
+    .flab .trk-tbl th{font-size:10px;color:#64748b;text-align:left;font-weight:700;padding:3px 5px;border-bottom:1px solid #1e2a3a}
+    .flab .trk-tbl td{padding:3px 5px;border-bottom:1px solid #141c2b}
+    .flab .trk-in{background:#0a0e1a;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:4px 6px;font-size:12px;min-height:unset;width:100%;box-sizing:border-box}
+    .flab .trk-num{width:62px}
+    .flab .trk-alive{font-weight:700;color:#34d399}
+    .flab .trk-empty{color:#64748b;font-size:11px;text-align:center;padding:8px}
+    .flab .trk-del{background:none;border:none;color:#f87171;font-size:13px;cursor:pointer;width:auto;min-height:unset;padding:2px 6px}
+    .flab .trk-act{display:flex;gap:8px;margin-top:8px}
+    .flab .trk-add,.flab .trk-csv{font-size:11px;font-weight:700;border-radius:7px;padding:6px 11px;cursor:pointer;width:auto;min-height:unset}
+    .flab .trk-add{background:#00d4aa;border:none;color:#04201a}
+    .flab .trk-csv{background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8}
+    .flab .pc-act{margin-top:11px;text-align:right}
+    .flab .pc-reset{font-size:11px;background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8;border-radius:7px;padding:6px 11px;cursor:pointer;width:auto;min-height:unset}
+    .flab .pc-head,.flab .pc-step{min-height:unset}
+    .flab .le-empty{text-align:center;padding:60px 20px;color:#94a3b8}
+    .flab .le-empty-t{font-size:17px;font-weight:700;color:#e2e8f0;margin:10px 0 6px}
+    .flab .le-empty-s{font-size:12px;color:#64748b;line-height:1.6;max-width:440px;margin:0 auto}
