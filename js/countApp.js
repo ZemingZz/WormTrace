@@ -3,9 +3,9 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=135';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=135';
-import { WormLearner } from './WormLearner.js?v=135';
+import { WormCounter } from './WormCounter.js?v=136';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=136';
+import { WormLearner } from './WormLearner.js?v=136';
 
 const counter = new WormCounter();
 const learner = new WormLearner();

@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=135';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=136';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -366,10 +366,11 @@ export class PlateCanvas {
       ctx.lineTo(pts[N][0], pts[N][1]);
     };
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    trace(); ctx.strokeStyle = color + 'dd'; ctx.lineWidth = wWid * 2.0; ctx.stroke();
-    trace(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = wWid * 0.8; ctx.stroke();
+    // Floor the stroke so worms stay visible even when very small (e.g. the sim canvas).
+    trace(); ctx.strokeStyle = color + 'dd'; ctx.lineWidth = Math.max(0.85, wWid * 2.0); ctx.stroke();
+    trace(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = Math.max(0.4, wWid * 0.8); ctx.stroke();
     const head = pts[N];
-    ctx.beginPath(); ctx.arc(head[0], head[1], wWid * 1.6, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(head[0], head[1], Math.max(0.9, wWid * 1.6), 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
   }
 
@@ -490,15 +491,15 @@ export class PlateCanvas {
     if (corners.br) _draw(corners.br, W - PAD, H - PAD - (corners.br?.length ?? 0) * LINE - PAD, 'right', colorOverrides.br ?? '#fbbf24');
   }
 
-  /** Drop one egg at a random worm's CURRENT position (its crawl path); random spot
-   *  if no worms are present yet. */
+  /** Drop ONE egg right where a worm currently is (on its crawl track), so eggs trail
+   *  the worms one at a time rather than appearing as a clump. Random spot if no worms. */
   _layOneEgg() {
     const eggs = this._eggs || (this._eggs = []);
     const ags = this._agents; let nx, ny;
     if (ags && ags.length) {
-      const a = ags[Math.floor(Math.random() * ags.length)];
-      nx = a.nx + (Math.random() - 0.5) * 0.05;
-      ny = a.ny + (Math.random() - 0.5) * 0.05;
+      const a = ags[Math.floor(Math.random() * ags.length)];     // a single worm's track point
+      nx = a.nx + (Math.random() - 0.5) * 0.012;                 // sit on the track (tiny jitter)
+      ny = a.ny + (Math.random() - 0.5) * 0.012;
     } else {
       const ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * 0.82;
       nx = Math.cos(ang) * rr; ny = Math.sin(ang) * rr;
@@ -507,29 +508,28 @@ export class PlateCanvas {
   }
 
   /** Keep the egg list in step with the (integer) standing-egg count. Eggs are laid
-   *  ONE AT A TIME at random moments — the live rate is set by the simulation (eggs/hr),
-   *  and within that hour they pop in randomly. A large initial backlog fills at once. */
+   *  ONE AT A TIME, each at a different worm's current track point — never a clump.
+   *  Worms don't all lay at the same instant, so a small per-frame catch-up keeps pace
+   *  during fast playback while staying staggered. */
   _updateEggs(totalEggs) {
     const eggs = this._eggs || (this._eggs = []);
-    const cap = Math.min(Math.floor(totalEggs), 140);
+    const cap = Math.min(Math.floor(totalEggs), 240);
     if (eggs.length > cap) { eggs.length = cap; return; }   // eggs hatched / plate reset
-    const deficit = cap - eggs.length;
-    if (deficit <= 0) return;
-    if (deficit > 12) { for (let k = 0; k < deficit; k++) this._layOneEgg(); }  // first load of a mature plate
-    else if (Math.random() < 0.15) this._layOneEgg();                           // trickle: ~1 egg, randomly timed
+    let need = cap - eggs.length;
+    if (need <= 0) return;
+    let add = need > 60 ? 3 : (need > 8 ? 2 : 1);           // mostly 1 at a time; mild catch-up
+    while (need > 0 && add > 0) { this._layOneEgg(); need--; add--; }
   }
 
   _drawEggsAt(ctx, cx, cy, maxR) {
     const eggs = this._eggs || [];
     const eggScale = this.canvas.width / 300;        // scales with the canvas (zoom-aware)
+    const rx = Math.max(0.9, 0.52 * eggScale), ry = Math.max(0.6, 0.34 * eggScale);   // ~3× smaller
     for (const e of eggs) {
       ctx.beginPath();
-      ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, 1.55 * eggScale, 1.0 * eggScale, e.rot, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(247,238,200,0.9)';
+      ctx.ellipse(cx + e.nx * maxR, cy + e.ny * maxR, rx, ry, e.rot, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(247,238,200,0.92)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(170,140,70,0.45)';
-      ctx.lineWidth = 0.5 * eggScale;
-      ctx.stroke();
     }
   }
 

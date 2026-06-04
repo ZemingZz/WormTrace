@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=135';
-import { PlateCanvas }       from './PlateCanvas.js?v=135';
-import { showToast, showConfirm } from './Toast.js?v=135';
-import { showFeedback }      from './Feedback.js?v=135';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=136';
+import { PlateCanvas }       from './PlateCanvas.js?v=136';
+import { showToast, showConfirm } from './Toast.js?v=136';
+import { showFeedback }      from './Feedback.js?v=136';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=135';
+} from './LifeCycle.js?v=136';
 
 export const pt = new PlateTracker();
 
@@ -803,7 +803,7 @@ function showPlateStatusModal(plateId) {
           <span style="font-size:13px;font-weight:800;color:var(--accent)">🔮 Growth Simulator</span>
           <span style="font-size:9px;color:#64748b;margin-left:auto">preview only — won't change your plate</span>
         </div>
-        <canvas id="simCanvas" width="240" height="240" style="display:block;margin:0 auto 10px;border-radius:50%"></canvas>
+        <canvas id="simCanvas" width="300" height="300" style="display:block;margin:0 auto 10px;border-radius:50%;max-width:100%"></canvas>
 
         <!-- Sim readouts -->
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:8px">
@@ -1236,6 +1236,48 @@ function renderPopulationBreakdown(snap, plate) {
     }).join('')}`;
 }
 
+/** Static breakdown rows (built ONCE) — bars are then updated in place so their CSS
+ *  width transitions can play smoothly instead of being rebuilt every frame. */
+function breakdownRowsHTML(plate) {
+  const stages = getStages(plate.strainId, plate.tempC);
+  const meta = id => stages.find(s => s.id === id) ?? { id, name: id, icon: '🐛', color: '#94a3b8' };
+  const defs = [
+    { id: 'egg', icon: '🥚', name: 'Eggs (unhatched)', color: '#fbbf24' },
+    ...['l1', 'l2', 'l3', 'l4', 'young_adult', 'adult'].map(id => { const m = meta(id); return { id, icon: m.icon, name: m.name, color: m.color }; }),
+    { id: 'dauer', icon: '💤', name: 'Dauer (arrested)', color: '#94a3b8' },
+    { id: 'dead', icon: '☠', name: 'Dead', color: '#ef4444' },
+  ];
+  return `
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
+      <span style="font-size:12px;font-weight:800;color:#e2e8f0;text-transform:uppercase;letter-spacing:0.05em">Worms on Plate</span>
+      <span id="pbSummary" style="font-size:11px;color:#64748b;margin-left:auto"></span>
+    </div>
+    ${defs.map(r => `
+      <div id="pbrow-${r.id}" style="display:none;align-items:center;gap:8px;padding:5px 0">
+        <span style="font-size:16px;width:20px;text-align:center">${r.icon}</span>
+        <span style="font-size:12px;color:${r.color};font-weight:700;min-width:120px">${r.name}</span>
+        <div style="flex:1;height:8px;background:#1e2a3a;border-radius:4px;overflow:hidden">
+          <div id="pbbar-${r.id}" style="height:100%;width:0%;background:${r.color};border-radius:4px;transition:width 0.25s ease-out"></div>
+        </div>
+        <span id="pbct-${r.id}" style="font-size:12px;color:#e2e8f0;font-family:monospace;font-weight:700;min-width:54px;text-align:right">0</span>
+      </div>`).join('')}`;
+}
+function updateBreakdown(box, snap) {
+  const q = id => box.querySelector('#' + id);
+  const counts = { egg: snap.eggs || 0, dauer: snap.dauer || 0, dead: Math.round(snap.dead || 0) };
+  for (const id of ['l1', 'l2', 'l3', 'l4', 'young_adult', 'adult']) counts[id] = Math.round(snap.byStage?.[id] ?? 0);
+  const ids = ['egg', 'l1', 'l2', 'l3', 'l4', 'young_adult', 'adult', 'dauer', 'dead'];
+  const total = ids.reduce((s, id) => s + (counts[id] || 0), 0) || 1;
+  for (const id of ids) {
+    const c = counts[id] || 0, row = q('pbrow-' + id);
+    if (!row) continue;
+    row.style.display = c > 0 ? 'flex' : 'none';
+    if (c > 0) { q('pbbar-' + id).style.width = ((c / total) * 100).toFixed(1) + '%'; q('pbct-' + id).textContent = c.toLocaleString(); }
+  }
+  const sum = q('pbSummary');
+  if (sum) sum.textContent = `${((snap.alive || 0) + (snap.dauer || 0)).toLocaleString()} alive · ${(snap.eggs || 0).toLocaleString()} eggs`;
+}
+
 function _initGrowthSimulator(plate, startHrs) {
   // Scope ALL queries to the current modal so stale duplicates never interfere
   const root = document.getElementById('plateStatusModal');
@@ -1275,7 +1317,8 @@ function _initGrowthSimulator(plate, startHrs) {
     return initFood > 0 ? (remaining / initFood) * 100 : 0;
   }
 
-  function render() {
+  let _lastDom = 0;
+  function render(force) {
     const cs = getCurrentStage(simHrs, plate.strainId, plate.tempC);
     let stage = cs.stage;
     // Population from the precomputed stepwise timeline (realistic food depletion)
@@ -1293,11 +1336,16 @@ function _initGrowthSimulator(plate, startHrs) {
       : (stages.find(s => s.id === domId) ?? stage);
     stage = domStage;
 
-    const st = { plate, hrsElapsed: simHrs, stage, foodPct,
+    // Canvas state is refreshed EVERY frame (smooth animation); simCanvas.start()'s
+    // own loop renders it. The panel DOM below is throttled so numbers/bars don't tick
+    // 60×/s and the bars' CSS transitions can play.
+    simCanvas.setState({ plate, hrsElapsed: simHrs, stage, foodPct,
       wormCount: snap.alive, totalEggs: snap.eggs,
-      population: snap.population, inoculatedAt: plate.inoculatedAt };
-    simCanvas.setState(st);
-    simCanvas._render(st);
+      population: snap.population, inoculatedAt: plate.inoculatedAt });
+
+    const now = performance.now();
+    if (!force && speed > 0 && now - _lastDom < 180) return;   // ~5–6 DOM updates/sec
+    _lastDom = now;
 
     const note = snap.dead > 0 && snap.alive === 0 && snap.dauer === 0
         ? '☠ All worms died (starvation / old age).'
@@ -1311,20 +1359,23 @@ function _initGrowthSimulator(plate, startHrs) {
     $('simTime').textContent  = fmtHours(simHrs);
     $('simFood').textContent  = `${foodPct.toFixed(0)}%`;
     $('simFood').style.color  = foodPct > 40 ? '#5a9e32' : foodPct > 15 ? '#c08020' : '#ef4444';
-    $('simEggs').textContent  = snap.eggs;
-    $('simWorms').textContent = snap.alive;
-    $('simDauer').textContent = snap.dauer;
-    $('simDead').textContent  = snap.dead;
+    $('simEggs').textContent  = Math.round(snap.eggs).toLocaleString();
+    $('simWorms').textContent = Math.round(snap.alive).toLocaleString();
+    $('simDauer').textContent = Math.round(snap.dauer).toLocaleString();
+    $('simDead').textContent  = Math.round(snap.dead).toLocaleString();
     $('simNote').textContent  = note;
     $('simScrub').value       = (simHrs / maxHrs) * 100;
 
-    // Big box → CLEAN VERTICAL breakdown of every stage present on the plate
+    // Big box → vertical stage breakdown. Built ONCE, then bars update in place so
+    // their width transitions animate smoothly (no per-frame innerHTML rebuild).
     const box = $('simStageBox');
     if (box) {
-      box.style.background  = '#0f172a';
-      box.style.borderColor = '#1e2a3a';
-      box.style.textAlign   = 'left';
-      box.innerHTML = renderPopulationBreakdown(snap, plate);
+      if (!box.dataset.pbBuilt) {
+        box.style.background = '#0f172a'; box.style.borderColor = '#1e2a3a'; box.style.textAlign = 'left';
+        box.innerHTML = breakdownRowsHTML(plate);
+        box.dataset.pbBuilt = '1';
+      }
+      updateBreakdown(box, snap);
     }
   }
 
@@ -1363,16 +1414,16 @@ function _initGrowthSimulator(plate, startHrs) {
   $('simScrub').oninput = (e) => {
     speed = 0; _setPlay(false);
     simHrs = (e.target.value / 100) * maxHrs;
-    render();
+    render(true);
   };
 
   $('simReset').onclick = () => {
     speed = 0; _setPlay(false);
     simHrs = startHrs;
-    render();
+    render(true);
   };
 
-  render();
+  render(true);
 
   return {
     destroy() {
