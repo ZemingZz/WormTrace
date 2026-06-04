@@ -818,10 +818,10 @@
       <div class="hl-bt">Experiments &amp; Procedures</div>
       <div class="hl-bs">Protocols &amp; experiment tracking</div>
     </button>
-    <button class="hl-box soon" data-home-soon type="button">
+    <button class="hl-box" data-open-app="literature" type="button">
       <div class="hl-ic">📚</div>
       <div class="hl-bt">Literature</div>
-      <div class="hl-bs">Papers &amp; references · coming soon</div>
+      <div class="hl-bs">Papers, protocols &amp; references</div>
     </button>
   </div>
   <div id="homeMsg"></div>
@@ -871,6 +871,20 @@
     #labExp .pc-vol-presets{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
     #labExp .pc-vchip{font-size:11px;background:#111a2b;border:1px solid #2d3748;color:#94a3b8;border-radius:14px;padding:3px 10px;cursor:pointer;width:auto;min-height:unset}
     #labExp .pc-vchip.on{background:#00d4aa;border-color:#00d4aa;color:#04201a;font-weight:700}
+    #labExp .pc-yield{font-size:11.5px;color:#34d399;background:#052e22;border:1px solid #16734f;border-radius:8px;padding:7px 10px;margin:-4px 0 10px}
+    #labExp .pc-yield b{color:#e2e8f0}
+    #labExp .pc-firm{display:flex;align-items:center;flex-wrap:wrap;gap:9px;background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+    #labExp .pc-firm-lbl{font-size:12px;font-weight:700;color:#cbd5e1}
+    #labExp .pc-firm-in{flex:1;min-width:120px;accent-color:#00d4aa;min-height:unset;width:auto}
+    #labExp .pc-firm-val{font-size:11px;color:#34d399;font-weight:700;white-space:nowrap}
+    #labExp .pc-timer{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#161b26;border:1px solid #7c5e1a;border-radius:8px;padding:8px 10px;margin-bottom:10px}
+    #labExp .pc-timer-lbl{font-size:12px;font-weight:700;color:#fbbf24}
+    #labExp .pc-timer-min{width:60px;background:#0a0e1a;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:5px 7px;font-size:13px;min-height:unset}
+    #labExp .pc-timer-disp{font-family:monospace;font-size:18px;font-weight:800;color:#e2e8f0;margin-left:auto;min-width:62px;text-align:right}
+    #labExp .pc-timer-disp.done{color:#f87171;animation:pcblink 1s steps(2,start) infinite}
+    @keyframes pcblink{50%{opacity:.35}}
+    #labExp .pc-timer-btn{font-size:12px;font-weight:700;background:#00d4aa;border:none;color:#04201a;border-radius:7px;padding:6px 12px;cursor:pointer;width:auto;min-height:unset}
+    #labExp .pc-timer-rst{font-size:13px;background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8;border-radius:7px;padding:6px 10px;cursor:pointer;width:auto;min-height:unset}
     #labExp .pc-mat{margin:0;padding-left:18px;font-size:12px;color:#94a3b8;line-height:1.6}
     #labExp .pc-steps{display:flex;flex-direction:column;gap:5px}
     #labExp .pc-step{display:flex;align-items:flex-start;gap:9px;background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;color:#cbd5e1;font-size:12.5px;line-height:1.45}
@@ -879,6 +893,25 @@
     #labExp .pc-box{flex-shrink:0;width:18px;height:18px;border:1.5px solid #2d3748;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#34d399;font-size:12px;font-weight:800}
     #labExp .pc-step.done .pc-box{background:#052e22;border-color:#16734f}
     #labExp .pc-notes{font-size:11px;color:#94a3b8;line-height:1.5;margin-top:11px;background:#161b26;border:1px solid #2d3748;border-radius:8px;padding:8px 10px}
+    #labExp .pc-src{font-size:11px;color:#64748b;margin-top:8px}
+    #labExp .pc-src a{color:#38bdf8;text-decoration:underline}
+    #labExp .pc-goto-row{margin:-2px 0 5px 27px}
+    #labExp .pc-goto{font-size:11px;font-weight:700;background:#0c2433;border:1px solid #1f5169;color:#38bdf8;border-radius:7px;padding:4px 10px;cursor:pointer;width:auto;min-height:unset}
+    #labExp .trk{background:#0b1220;border:1px solid #1e2a3a;border-radius:8px;padding:9px 10px}
+    #labExp .trk-top{font-size:11px;color:#94a3b8;margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    #labExp .trk-sum{margin-left:auto;color:#64748b}
+    #labExp .trk-tbl{width:100%;border-collapse:collapse;font-size:12px}
+    #labExp .trk-tbl th{font-size:10px;color:#64748b;text-align:left;font-weight:700;padding:3px 5px;border-bottom:1px solid #1e2a3a}
+    #labExp .trk-tbl td{padding:3px 5px;border-bottom:1px solid #141c2b}
+    #labExp .trk-in{background:#0a0e1a;border:1px solid #2d3748;color:#e2e8f0;border-radius:6px;padding:4px 6px;font-size:12px;min-height:unset;width:100%;box-sizing:border-box}
+    #labExp .trk-num{width:62px}
+    #labExp .trk-alive{font-weight:700;color:#34d399}
+    #labExp .trk-empty{color:#64748b;font-size:11px;text-align:center;padding:8px}
+    #labExp .trk-del{background:none;border:none;color:#f87171;font-size:13px;cursor:pointer;width:auto;min-height:unset;padding:2px 6px}
+    #labExp .trk-act{display:flex;gap:8px;margin-top:8px}
+    #labExp .trk-add,#labExp .trk-csv{font-size:11px;font-weight:700;border-radius:7px;padding:6px 11px;cursor:pointer;width:auto;min-height:unset}
+    #labExp .trk-add{background:#00d4aa;border:none;color:#04201a}
+    #labExp .trk-csv{background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8}
     #labExp .pc-act{margin-top:11px;text-align:right}
     #labExp .pc-reset{font-size:11px;background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8;border-radius:7px;padding:6px 11px;cursor:pointer;width:auto;min-height:unset}
     #labExp .pc-head,#labExp .pc-step{min-height:unset}
@@ -900,6 +933,32 @@
   </div>
 </div>
 
+<!-- ══════════════════ LITERATURE PROJECT ══════════════════ -->
+<div id="labLit">
+  <style>
+    #labLit{position:fixed;inset:0;z-index:1400;background:#0a0e1a;display:none;flex-direction:column}
+    #labLit .le-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1e2a3a;background:#0d1424;flex-shrink:0}
+    #labLit .le-home{background:#1e2a3a;border:1px solid #2d3748;color:#cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;width:auto;min-height:unset;flex-shrink:0}
+    #labLit .le-title{font-size:15px;font-weight:700;color:#e2e8f0}
+    #labLit .lit-wrap{flex:1;min-height:0;overflow-y:auto;padding:14px}
+    #labLit .lit-inner{max-width:720px;margin:0 auto}
+    #labLit .lit-intro{font-size:12px;color:#64748b;margin-bottom:14px;line-height:1.5}
+    #labLit .lit-group{margin-bottom:16px}
+    #labLit .lit-group-t{font-size:13px;font-weight:800;color:#e2e8f0;margin-bottom:8px}
+    #labLit .lit-item{display:flex;align-items:center;gap:10px;background:#0f1623;border:1px solid #1e2a3a;border-radius:10px;padding:11px 13px;margin-bottom:8px}
+    #labLit .lit-it-main{flex:1;min-width:0}
+    #labLit .lit-title{font-size:13px;font-weight:700;color:#e2e8f0}
+    #labLit .lit-by{font-size:11px;color:#94a3b8;line-height:1.4}
+    #labLit .lit-open{font-size:12px;font-weight:700;color:#04201a;background:#00d4aa;border-radius:7px;padding:6px 11px;text-decoration:none;white-space:nowrap}
+    #labLit .lit-noopen{font-size:11px;color:#64748b;white-space:nowrap}
+  </style>
+  <div class="le-bar">
+    <button class="le-home" type="button">🏠 Biotastic Lab</button>
+    <div class="le-title">📚 Literature</div>
+  </div>
+  <div class="lit-wrap"><div class="lit-inner" id="litBody"></div></div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded',function(){
   ['leftPanel','canvasWrap','rightPanel','platePanelList','platePanelDetail','platePanelRight'].forEach(function(id){
@@ -914,15 +973,16 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=96"></script>
-<script type="module" src="js/experimentsApp.js?v=96"></script>
-<script type="module" src="js/app.js?v=96"></script>
-<script type="module" src="js/plateApp.js?v=96"></script>
-<script type="module" src="js/countApp.js?v=96"></script>
-<script type="module" src="js/collectionApp.js?v=96"></script>
-<script type="module" src="js/pathwaysApp.js?v=96"></script>
+<script type="module" src="js/homeApp.js?v=108"></script>
+<script type="module" src="js/experimentsApp.js?v=108"></script>
+<script type="module" src="js/literatureApp.js?v=108"></script>
+<script type="module" src="js/app.js?v=108"></script>
+<script type="module" src="js/plateApp.js?v=108"></script>
+<script type="module" src="js/countApp.js?v=108"></script>
+<script type="module" src="js/collectionApp.js?v=108"></script>
+<script type="module" src="js/pathwaysApp.js?v=108"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=96';
+  import { initMobile } from './js/mobile.js?v=108';
   initMobile();
 </script>
 </body>

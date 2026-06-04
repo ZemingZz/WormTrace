@@ -16,8 +16,11 @@ function init() {
   const hs = document.getElementById('homeScreen');
   if (!hs) return;
   hs.querySelectorAll('[data-open-app]').forEach(b => b.addEventListener('click', () => {
+    const which = b.dataset.openApp;
     const exp = document.getElementById('labExp');           // Experiments & Procedures overlay
-    if (exp) exp.style.display = (b.dataset.openApp === 'expproc') ? 'flex' : 'none';
+    const lit = document.getElementById('labLit');           // Literature overlay
+    if (exp) exp.style.display = (which === 'expproc')   ? 'flex' : 'none';
+    if (lit) lit.style.display = (which === 'literature') ? 'flex' : 'none';
     hide();                                                   // hide home → reveal the chosen project
   }));
   const msg = document.getElementById('homeMsg');
