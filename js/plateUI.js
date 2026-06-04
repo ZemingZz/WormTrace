@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=97';
-import { PlateCanvas }       from './PlateCanvas.js?v=97';
-import { showToast, showConfirm } from './Toast.js?v=97';
-import { showFeedback }      from './Feedback.js?v=97';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=98';
+import { PlateCanvas }       from './PlateCanvas.js?v=98';
+import { showToast, showConfirm } from './Toast.js?v=98';
+import { showFeedback }      from './Feedback.js?v=98';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=97';
+} from './LifeCycle.js?v=98';
 
 export const pt = new PlateTracker();
 
@@ -826,6 +826,7 @@ function showPlateStatusModal(plateId) {
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <button id="simPlay" class="sim-btn" style="background:var(--accent);color:#000">▶</button>
           ${[{x:1,r:4},{x:2,r:8},{x:3,r:12}].map(s => `<button class="sim-btn sim-speed" data-spd="${s.r}">${s.x}×</button>`).join('')}
+          <button id="simFeed" class="sim-btn" style="background:#1a2e1a;border-color:#5a9e32;color:#8fd14f" title="Add a fresh bacterial lawn at the current time">🍽 Feed</button>
           <button id="simReset" class="sim-btn" style="margin-left:auto">↺ Now</button>
         </div>
       </div>
@@ -957,10 +958,11 @@ function showPlateStatusModal(plateId) {
  * thus dauer at L1 / death) triggers realistically once offspring crowd the plate.
  * Precompute ONCE, then look up any time point. Returns an array of snapshots.
  */
-function buildLifeTimeline(plate) {
+function buildLifeTimeline(plate, feedEvents = []) {
   const strainId = plate.strainId, tempC = plate.tempC;
   const stages   = getStages(strainId, tempC);
   const adultStart = (stages.find(s => s.id === 'adult') ?? stages[stages.length - 1]).start;
+  const l4Start  = (stages.find(s => s.id === 'l4') ?? stages.find(s => s.id === 'adult') ?? stages[stages.length - 1]).start;
   const eggDur   = stages[0].duration;
   const layWindow = 80;
   // Age-specific adult mortality (Gompertz): hazard μ(t) = A·e^(G·t) per day, t =
@@ -978,8 +980,23 @@ function buildLifeTimeline(plate) {
   const canDauer = canFormDauer(strainId);
   const colorOf  = id => (stages.find(s => s.id === id)?.color ?? '#00d4aa');
 
+  // ── Starvation dynamics ──────────────────────────────────────────────────
+  // Death is NOT instant when food runs out: each starving cohort accrues a
+  // rising hazard the longer it goes unfed. Gentle to start (worms mostly
+  // survive the first day) then accelerating — μ(s) = A·e^(G·s), s = days
+  // starved. Calibrated so ~little death day-1, ~25%/d by d3, near-total by ~1 wk.
+  const STARVE_A = 0.04;     // per-day starvation hazard at the moment food runs out
+  const STARVE_G = 0.55;     // per-day acceleration of that hazard
+  // Decision-window larvae (late-L1 → L2d) don't die — they gradually COMMIT to
+  // dauer instead. Commitment spreads over ~a day rather than flipping at once.
+  const DAUER_COMMIT_K  = 0.10;   // per-hour → ~50% committed by ~7 h, ~all within ~1.5 d
+  // When food RETURNS, arrested dauers exit and resume as post-dauer L4 over a
+  // few hours (Cassada & Russell; recovery feeding within 2–3 h).
+  const DAUER_RECOVER_K = 0.20;   // per-hour → most dauers recover within ~half a day
+
   const DT = 6, MAX_H = 90 * 24, POP_CAP = 5e6;   // headroom so charts can auto-fit long-lived strains
-  let food = plate.initialFood ?? 0.2;
+  const initFoodBase = plate.initialFood ?? 0.2;
+  let food = initFoodBase;
 
   // Seed from ALL real cohorts (founding + user-added), each appearing at its
   // addedAtHrs with its own developmental age. This makes added worms show the
@@ -992,20 +1009,28 @@ function buildLifeTimeline(plate) {
   if (!seeds.length) seeds.push({ stageStartHr: plate.stageStartOffset ?? 0, addedAtHrs: 0, count: plate.wormCount ?? 1 });
   const pending = seeds.slice();   // not-yet-activated seeds
 
-  // cohort: { age, count, dauer, dead, dauerAge }
+  // cohort: { age, count, dauer, dead, dauerAge, starveHrs }
   let cohorts = [];
   let agedDead = 0;                          // cumulative fractional old-age (Gompertz) deaths
+  let starveDead = 0;                        // cumulative fractional starvation deaths
   const snaps = [];
   const stageIdAt = age => getCurrentStage(age, strainId, tempC).stage.id;
+  const feeds = [...feedEvents].sort((a, b) => a.hr - b.hr);   // food re-added at these dev-hours
 
   const layRate = maxEggs / layWindow;       // eggs per adult per hour
   for (let h = 0; h <= MAX_H; h += DT) {
-    // 0) Activate any seed cohorts whose add-time has arrived (within this step,
+    // 0) Re-feed events: a fresh lawn applied at this dev-hour refills the food.
+    //    Surviving worms will stop starving and arrested dauers begin to recover.
+    for (const fe of feeds) {
+      if (fe.hr >= h && fe.hr < h + DT) food = Math.max(food, fe.amount ?? initFoodBase);
+    }
+
+    // 0b) Activate any seed cohorts whose add-time has arrived (within this step,
     //    so worms added "now" — addedAtHrs ≈ 0 — appear immediately at h = 0).
     for (let i = pending.length - 1; i >= 0; i--) {
       if (pending[i].addedAtHrs < h + DT) {
         const s = pending.splice(i, 1)[0];
-        cohorts.push({ age: s.stageStartHr + Math.max(0, h - s.addedAtHrs), count: s.count, dauer: false, dead: false, dauerAge: 0 });
+        cohorts.push({ age: s.stageStartHr + Math.max(0, h - s.addedAtHrs), count: s.count, dauer: false, dead: false, dauerAge: 0, starveHrs: 0 });
       }
     }
 
@@ -1024,14 +1049,14 @@ function buildLifeTimeline(plate) {
         eggCrop += c.count * layRate * Math.min(timeLaying, eggDur);
       }
     }
-    dead += agedDead;   // include cumulative old-age (Gompertz) deaths
+    dead += agedDead + starveDead;   // include cumulative old-age (Gompertz) + starvation deaths
     const r1 = n => Math.round(n * 10) / 10;   // worm counts shown to 1 decimal place
     const eggStanding = r1(eggCrop);
     const population = Object.entries(byStage).map(([id, count]) => ({ stageId: id, color: colorOf(id), count: Math.round(count) }));
     if (dauer >= 1) population.push({ stageId: 'dauer', color: '#94a3b8', count: Math.round(dauer) });
     const byStageR = {}; for (const k in byStage) byStageR[k] = r1(byStage[k]);
     snaps.push({ h, population, byStage: byStageR, alive: r1(alive), dauer: r1(dauer),
-      dead: r1(dead), eggs: eggStanding, foodPct: (food / (plate.initialFood ?? 0.2)) * 100 });
+      dead: r1(dead), eggs: eggStanding, foodPct: Math.min(100, (food / initFoodBase) * 100) });
 
     // 2) Consume food (dauer & dead & eggs don't feed)
     let consume = 0;
@@ -1039,39 +1064,74 @@ function buildLifeTimeline(plate) {
       if (c.dauer || c.dead) continue;
       consume += c.count * adultRate * (STAGE_FOOD_FACTOR[stageIdAt(c.age)] ?? 1) * DT;
     }
-    const hadFood = food > 0;
     food = Math.max(0, food - consume);
-    const foodOut = food <= 0;
+    const starving = food <= 0;   // lawn exhausted this step
 
-    // 3) Reproduction (only while food available)
-    if (hadFood) {
+    // 3) Reproduction (only while food is available)
+    if (!starving) {
       const born = [];
       for (const c of cohorts) {
         if (c.dauer || c.dead) continue;
         if (c.age >= adultStart && c.age <= adultStart + layWindow) {
           const brood = c.count * layRate * DT;
-          if (brood >= 1) born.push({ age: 0, count: Math.min(brood, POP_CAP), dauer: false, dead: false, dauerAge: 0 });
+          if (brood >= 1) born.push({ age: 0, count: Math.min(brood, POP_CAP), dauer: false, dead: false, dauerAge: 0, starveHrs: 0 });
         }
       }
       cohorts.push(...born);
     }
 
-    // 4) Starvation: larvae in the late-L1 → L2d decision window (or just-hatched)
-    //    freeze as dauer; everything past the window (or Daf-defective) dies.
-    if (foodOut) {
+    // 4) Starvation vs. recovery.
+    if (starving) {
+      // No food: each living cohort accrues starve-time. Decision-window larvae
+      // (late-L1 → L2d, or just-hatched) gradually COMMIT to dauer and survive;
+      // everything else (and Daf-defective strains) dies at a hazard that RISES
+      // the longer it has gone unfed — gentle at first, then accelerating.
+      let toDauer = 0;
       for (const c of cohorts) {
-        if (c.dauer || c.dead) continue;
-        const sid = stageIdAt(c.age);
-        if ((DAUER.decisionStages.includes(sid) || c.age < eggDur) && canDauer) c.dauer = true;
-        else c.dead = true;
+        if (c.dead || c.dauer) continue;
+        c.starveHrs += DT;
+        const inDauerWindow = DAUER.decisionStages.includes(stageIdAt(c.age)) || c.age < eggDur;
+        if (inDauerWindow && canDauer) {
+          const conv = c.count * (1 - Math.exp(-DAUER_COMMIT_K * DT));
+          toDauer += conv; c.count -= conv;
+        } else {
+          const sDays = c.starveHrs / 24;
+          const mu = STARVE_A * Math.exp(STARVE_G * sDays);          // per day, rising with starve-time
+          const d  = c.count * (1 - Math.exp(-mu * (DT / 24)));
+          c.count -= d; starveDead += d;
+        }
+        if (c.count < 0.01) c.dead = true;   // cohort emptied → retire it
       }
+      // Newly-committed larvae enter the dauer pool, frozen until food returns.
+      if (toDauer > 0) cohorts.push({ age: l4Start, count: toDauer, dauer: true, dead: false, dauerAge: 0, starveHrs: 0 });
+    } else {
+      // Food present: survivors stop dying (reset their starve clock) and any
+      // arrested dauers gradually RECOVER, exiting to post-dauer L4 to resume
+      // the cycle (only dauers come back — already-dead worms stay dead).
+      let recovered = 0;
+      for (const c of cohorts) {
+        if (c.dead) continue;
+        if (c.dauer) {
+          const rec = c.count * (1 - Math.exp(-DAUER_RECOVER_K * DT));
+          recovered += rec; c.count -= rec;
+          c.dauerAge += DT;
+        } else {
+          c.starveHrs = 0;
+        }
+      }
+      if (recovered > 0) cohorts.push({ age: l4Start, count: recovered, dauer: false, dead: false, dauerAge: 0, starveHrs: 0 });
     }
 
-    // 5) Age the living (dauer arrested → don't age, but age their dauer clock);
-    //    old-age death for adults, and dauer death after the survival limit.
+    // 5) Age the living (dauer arrested → don't develop, but age their dauer clock
+    //    while starving); old-age death for adults; dauer death past survival limit.
     for (const c of cohorts) {
       if (c.dead) continue;
-      if (c.dauer) { c.dauerAge += DT; if (c.dauerAge >= DAUER_SURVIVAL) c.dead = true; continue; }
+      if (c.dauer) {
+        if (starving) c.dauerAge += DT;     // (when fed, the dauerAge tick happens in step 4)
+        if (c.dauerAge >= DAUER_SURVIVAL) c.dead = true;
+        continue;
+      }
+      if (starving) continue;               // no food → development arrests (no aging, no old-age death)
       c.age += DT;
       // Age-specific old-age mortality: a FRACTION of each adult cohort dies each
       // step per the Gompertz hazard (rises with adult age) → smooth survival curve.
@@ -1084,18 +1144,21 @@ function buildLifeTimeline(plate) {
       }
     }
 
-    // 6) Merge cohorts to keep it fast (group living by ~age bucket; pool dauer/dead)
+    // 6) Merge cohorts to keep it fast (group living by ~age bucket; pool dauer/dead).
+    //    Preserve the worst starve-clock per bucket so a merge mid-starvation
+    //    doesn't reset the rising death hazard.
     if (cohorts.length > 300) {
       const buckets = {}; let dPool = 0, xPool = 0, dAgeMax = 0;
       for (const c of cohorts) {
         if (c.dead) { xPool += c.count; continue; }
         if (c.dauer) { dPool += c.count; dAgeMax = Math.max(dAgeMax, c.dauerAge ?? 0); continue; }
         const key = Math.round(c.age / DT);
-        buckets[key] = (buckets[key] ?? 0) + c.count;
+        const b = buckets[key] ?? (buckets[key] = { count: 0, starveHrs: 0 });
+        b.count += c.count; b.starveHrs = Math.max(b.starveHrs, c.starveHrs ?? 0);
       }
-      cohorts = Object.entries(buckets).map(([k, count]) => ({ age: +k * DT, count, dauer: false, dead: false, dauerAge: 0 }));
-      if (dPool > 0) cohorts.push({ age: 0, count: dPool, dauer: true, dead: false, dauerAge: dAgeMax });
-      if (xPool > 0) cohorts.push({ age: 0, count: xPool, dauer: false, dead: true, dauerAge: 0 });
+      cohorts = Object.entries(buckets).map(([k, b]) => ({ age: +k * DT, count: b.count, dauer: false, dead: false, dauerAge: 0, starveHrs: b.starveHrs }));
+      if (dPool > 0) cohorts.push({ age: l4Start, count: dPool, dauer: true, dead: false, dauerAge: dAgeMax, starveHrs: 0 });
+      if (xPool > 0) cohorts.push({ age: 0, count: xPool, dauer: false, dead: true, dauerAge: 0, starveHrs: 0 });
     }
   }
   return snaps;
@@ -1258,11 +1321,16 @@ function _initGrowthSimulator(plate, startHrs) {
 
   const simCanvas = new PlateCanvas(canvas);
   simCanvas._noAutoSize = true;   // keep its fixed 240×240 size
+  simCanvas.enableZoom(canvas);   // tap the sim plate to open the fullscreen zoom view
+  canvas.style.cursor = 'zoom-in';
   simCanvas.start();
 
-  // Precompute the full 28-day population/food timeline ONCE (food depletes from
-  // the real growing population → realistic hatching, dauer, death).
-  const timeline = buildLifeTimeline(plate);
+  // Precompute the full 28-day population/food timeline (food depletes from the
+  // real growing population → realistic hatching, dauer, death). Rebuilt whenever
+  // the user re-feeds the plate, so refeeding rescues survivors & revives dauers.
+  const feedEvents = [];                       // {hr, amount} — fresh lawns added during the sim
+  let timeline = buildLifeTimeline(plate, feedEvents);
+  function rebuildTimeline() { timeline = buildLifeTimeline(plate, feedEvents); }
 
   let simHrs = startHrs;
   let speed  = 0;             // 0 = paused
@@ -1301,8 +1369,12 @@ function _initGrowthSimulator(plate, startHrs) {
 
     const note = snap.dead > 0 && snap.alive === 0 && snap.dauer === 0
         ? '☠ All worms died (starvation / old age).'
+      : (snap.dauer > 0 && foodPct > 5)
+        ? '🍽 Food restored — dauers are recovering and resuming development as post-dauer L4.'
       : snap.dauer > 0
-        ? '💤 L1 larvae entered DAUER after food ran out — they survive until refed.'
+        ? '💤 L1/L2d larvae entered DAUER after food ran out — they survive until refed.'
+      : (foodPct <= 1 && snap.alive > 0)
+        ? '⚠ Food exhausted — unprotected worms are starving; death risk climbs the longer it lasts. Tap 🍽 Feed to rescue them.'
       : (Object.keys(snap.byStage ?? {}).length > 1
         ? '🔄 Multiple generations developing — eggs hatching into new cycles.' : '');
 
@@ -1366,9 +1438,22 @@ function _initGrowthSimulator(plate, startHrs) {
     render();
   };
 
+  // Feed: drop a fresh lawn at the CURRENT sim time. Re-feeding rescues starving
+  // survivors (they stop dying) and revives arrested dauers (they recover to L4
+  // and resume the cycle). Rebuilds the timeline so the effect plays forward.
+  $('simFeed').onclick = () => {
+    feedEvents.push({ hr: simHrs, amount: plate.initialFood ?? 0.2 });   // match buildLifeTimeline's food base
+    rebuildTimeline();
+    const btn = $('simFeed');
+    if (btn) { btn.textContent = '🍽 Fed ✓'; setTimeout(() => { if (btn) btn.textContent = '🍽 Feed'; }, 1200); }
+    render();
+  };
+
   $('simReset').onclick = () => {
     speed = 0; _setPlay(false);
     simHrs = startHrs;
+    feedEvents.length = 0;     // clear re-feeds → back to the plate's real food trajectory
+    rebuildTimeline();
     render();
   };
 

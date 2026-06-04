@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=97';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=98';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -137,7 +137,7 @@ export class PlateCanvas {
 
   // ── Internal render ────────────────────────────────────────────────────────
 
-  _render({ plate, hrsElapsed = 0, stage, foodPct = 100, wormCount = 1, totalEggs = 0, inoculatedAt }) {
+  _render({ plate, hrsElapsed = 0, stage, foodPct = 100, wormCount = 1, totalEggs = 0, inoculatedAt, population = null }) {
     const { canvas: c, ctx } = this;
     const W = c.width, H = c.height;
     const cx = W / 2, cy = H / 2;
@@ -190,10 +190,10 @@ export class PlateCanvas {
 
       // ── Worms ────────────────────────────────────────────────────────────
       const wormR = lawnR * (lawnScale > 0 ? lawnScale : 0.6) * 0.9;
-      if (this._state.population && this._state.population.length) {
+      if (population && population.length) {
         // Mixed multi-generation population: round-robin interleave so stages mix
         const isDpy = (plate.strainId ?? 'N2') === 'dpy-13';
-        const groups = this._state.population.map(g => ({ ...g, left: g.count }));
+        const groups = population.map(g => ({ ...g, left: g.count }));
         const items = [];
         let remaining = groups.reduce((s, g) => s + g.left, 0);
         while (remaining > 0 && items.length < 200) {

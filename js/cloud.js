@@ -10,7 +10,7 @@
  * The Supabase client is loaded from the CDN on demand (ESM), so there is no
  * build step — consistent with the rest of WormTrace's no-bundler setup.
  */
-import { CONFIG, isConfigured } from './config.js?v=97';
+import { CONFIG, isConfigured } from './config.js?v=98';
 
 const SUPABASE_ESM = 'https://esm.sh/@supabase/supabase-js@2';
 
