@@ -8,7 +8,7 @@
  *   • Egg dots when worms are in the adult stage
  *   • Food-exhausted warning when food = 0
  */
-import { fmtElapsed, fmtHours } from './LifeCycle.js?v=98';
+import { fmtElapsed, fmtHours } from './LifeCycle.js?v=99';
 
 export class PlateCanvas {
   constructor(canvas) {
@@ -142,7 +142,8 @@ export class PlateCanvas {
     const W = c.width, H = c.height;
     const cx = W / 2, cy = H / 2;
     const R  = Math.min(W, H) / 2 - 8;
-    const lawnR = R * 0.86;
+    // Food lawn lives in the CENTRE ~half of the plate (worms congregate here).
+    const lawnR = R * 0.5;
 
     ctx.clearRect(0, 0, W, H);
 
@@ -153,8 +154,8 @@ export class PlateCanvas {
     ctx.clip();
 
     const agarGrad = ctx.createRadialGradient(cx - R * 0.25, cy - R * 0.25, 0, cx, cy, R);
-    agarGrad.addColorStop(0, '#f9f4e7');
-    agarGrad.addColorStop(1, '#e8dfc6');
+    agarGrad.addColorStop(0, '#f6edc4');
+    agarGrad.addColorStop(1, '#e4d5a4');
     ctx.fillStyle = agarGrad;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
@@ -178,9 +179,6 @@ export class PlateCanvas {
         ctx.arc(cx, cy, lawnR * lawnScale, 0, Math.PI * 2);
         ctx.fillStyle = lawnGrad;
         ctx.fill();
-
-        // Texture stippling
-        this._drawLawnTexture(ctx, cx, cy, lawnR * lawnScale, lawnColor);
       }
 
       // ── Eggs on plate ────────────────────────────────────────────────────
@@ -189,7 +187,10 @@ export class PlateCanvas {
       }
 
       // ── Worms ────────────────────────────────────────────────────────────
-      const wormR = lawnR * (lawnScale > 0 ? lawnScale : 0.6) * 0.9;
+      // Worms congregate ON the food (centre lawn) but a few wander out toward
+      // the rim. foodR = current lawn radius; plateR = how far roamers can go.
+      const foodR  = lawnScale > 0 ? lawnR * lawnScale : 0;
+      const plateR = R * 0.9;
       if (population && population.length) {
         // Mixed multi-generation population: round-robin interleave so stages mix
         const isDpy = (plate.strainId ?? 'N2') === 'dpy-13';
@@ -201,9 +202,9 @@ export class PlateCanvas {
             if (g.left > 0) { items.push({ stageId: g.stageId, color: g.color }); g.left--; remaining--; }
           }
         }
-        this._layoutWorms(ctx, cx, cy, wormR, items, isDpy);
+        this._layoutWorms(ctx, cx, cy, foodR, plateR, items, isDpy);
       } else if (wormCount > 0 && stage) {
-        this._drawWorms(ctx, cx, cy, wormR, wormCount, stage, plate.strainId ?? 'N2');
+        this._drawWorms(ctx, cx, cy, foodR, plateR, wormCount, stage, plate.strainId ?? 'N2');
       }
     }
 
@@ -282,19 +283,6 @@ export class PlateCanvas {
     ctx.restore();
   }
 
-  _drawLawnTexture(ctx, cx, cy, r, color) {
-    // Small dots scattered across the lawn
-    const count = Math.floor(r * 1.8);
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 * 3.7 + i * 0.4;
-      const d = r * (0.05 + ((i * 53) % 100) / 100 * 0.9);
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = color + '66';
-      ctx.fill();
-    }
-  }
-
   /** Size [length, width] for a stage — kept small to reduce clutter when the
    *  plate is crowded with hundreds of worms. */
   _wormSize(stageId, isDpy) {
@@ -335,15 +323,30 @@ export class PlateCanvas {
     ctx.fillStyle = color; ctx.fill();
   }
 
-  /** Lay out a list of worms (each {stageId,color}) in a golden-angle spiral. */
-  _layoutWorms(ctx, cx, cy, maxR, items, isDpy) {
+  /** Lay out worms (each {stageId,color}) on the plate: most cluster on the food
+   *  lawn (golden-angle spiral inside foodR), a minority WANDER out toward the rim
+   *  (spread through the annulus foodR→plateR). With no food, everyone roams. */
+  _layoutWorms(ctx, cx, cy, foodR, plateR, items, isDpy) {
     const t = this._t;
     const drawCount = Math.min(items.length, 160);
+    const hasFood   = foodR > plateR * 0.06;
+    const wanderFrac = hasFood ? 0.22 : 1;            // share roaming off the lawn
+    const nFood = Math.round(drawCount * (1 - wanderFrac));
+    const nWander = drawCount - nFood;
     for (let i = 0; i < drawCount; i++) {
       const it = items[i];
       const [wLen, wWid] = this._wormSize(it.stageId, isDpy);
-      const phi = i * 2.399963;
-      const rr  = maxR * Math.sqrt((i + 1) / drawCount) * 0.88 + maxR * 0.04;
+      const phi = i * 2.399963;                         // golden angle → even spread
+      let rr;
+      if (i < nFood) {
+        // On the lawn: area-uniform inside the food disk (centre of the plate).
+        rr = foodR * Math.sqrt((i + 0.5) / Math.max(1, nFood)) * 0.94;
+      } else {
+        // Wandering: area-uniform in the ring from the lawn edge to near the rim.
+        const u = (i - nFood + 0.5) / Math.max(1, nWander);
+        const inner = hasFood ? foodR : plateR * 0.12;
+        rr = Math.sqrt(inner * inner + u * (plateR * plateR - inner * inner));
+      }
       const wx  = cx + Math.cos(phi) * rr;
       const wy  = cy + Math.sin(phi) * rr;
       const swimPhase = t * 0.07 + i * 1.3;
@@ -358,14 +361,14 @@ export class PlateCanvas {
       ctx.font = 'bold 10px monospace';
       ctx.fillStyle = '#94a3b8';
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(`+${items.length - 160} more`, cx, cy + maxR - 4);
+      ctx.fillText(`+${items.length - 160} more`, cx, cy + plateR - 4);
     }
   }
 
-  _drawWorms(ctx, cx, cy, maxR, count, stage, strainId) {
+  _drawWorms(ctx, cx, cy, foodR, plateR, count, stage, strainId) {
     const isDpy = strainId === 'dpy-13';
     const items = Array.from({ length: count }, () => ({ stageId: stage.id, color: stage.color }));
-    this._layoutWorms(ctx, cx, cy, maxR, items, isDpy);
+    this._layoutWorms(ctx, cx, cy, foodR, plateR, items, isDpy);
   }
 
   /** Draw corner stats in the BLACK CORNERS outside the plate circle. */

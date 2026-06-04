@@ -8,10 +8,10 @@
  * When the cloud is not configured (config.js empty), the chip explains that
  * the app is running in offline mode and points to LAUNCH.md — nothing breaks.
  */
-import { Cloud } from './cloud.js?v=98';
-import { CONFIG, isConfigured } from './config.js?v=98';
-import { MLEngine } from './MLEngine.js?v=98';
-import { PlateTracker } from './PlateTracker.js?v=98';
+import { Cloud } from './cloud.js?v=99';
+import { CONFIG, isConfigured } from './config.js?v=99';
+import { MLEngine } from './MLEngine.js?v=99';
+import { PlateTracker } from './PlateTracker.js?v=99';
 
 let _modal = null;
 let _user = null;
