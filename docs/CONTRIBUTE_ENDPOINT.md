@@ -18,7 +18,8 @@ A single `POST` with a JSON body (sent as `text/plain` to avoid a CORS preflight
 {
   "type": "wormtrace-contribution",
   "version": 1,
-  "appVersion": 147,
+  "token": "wt_…",                       // shared anti-spam token (matches SHARED_TOKEN in the app)
+  "appVersion": 149,
   "clientId": "wt_<random-uuid>",        // anonymous per-device id, for de-duping. No PII.
   "ts": "2026-06-05T05:16:44.000Z",
   "features": 5,
@@ -53,11 +54,14 @@ folder. This is the least fiddly path and matches the "agree once, auto-collect"
 // WormTrace contribution receiver (standalone). Saves each upload as a JSON
 // file in a Drive folder. No spreadsheet binding required.
 const FOLDER_NAME = 'WormTrace Contributions';
+// Anti-spam: must match SHARED_TOKEN in js/Contribute.js. Set '' to disable the check.
+const SECRET = 'wt_f2c9748cbc2b5afd1045aa3d';
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     if (data.type !== 'wormtrace-contribution') return json_({ ok: false, error: 'bad type' });
+    if (SECRET && data.token !== SECRET) return json_({ ok: false, error: 'unauthorized' });
 
     const folder = getFolder_(FOLDER_NAME);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -78,6 +82,11 @@ function json_(obj) {
 ```
 
 3. **Deploy → New deployment → Web app**: *Execute as* **Me**, *Who has access* **Anyone**. Deploy & authorize.
+
+> **Updating an existing deployment:** after editing the code, you must publish a new
+> version — **Deploy → Manage deployments → ✏️ edit → Version: New version → Deploy**.
+> The `/exec` URL stays the same. (Editing the code alone does NOT update the live
+> endpoint.)
 4. Copy the Web app URL (ends in `/exec`). Paste it into the app, or bake it into
    `DEFAULT_ENDPOINT` in `js/Contribute.js` so every user contributes automatically.
 
@@ -94,6 +103,7 @@ Google Sheet → **Extensions → Apps Script**, which auto-binds it) and use th
 // WormTrace contribution receiver.
 // Saves each upload as a JSON file in a Drive folder + a summary row in the Sheet.
 const FOLDER_NAME = 'WormTrace Contributions';
+const SECRET = 'wt_f2c9748cbc2b5afd1045aa3d';   // must match SHARED_TOKEN in the app ('' disables)
 
 function doPost(e) {
   try {
@@ -101,6 +111,7 @@ function doPost(e) {
     if (data.type !== 'wormtrace-contribution') {
       return json_({ ok: false, error: 'bad type' });
     }
+    if (SECRET && data.token !== SECRET) return json_({ ok: false, error: 'unauthorized' });
 
     const folder = getFolder_(FOLDER_NAME);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -155,9 +166,13 @@ export default {
     if (req.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
     if (req.method !== 'POST') return cors(new Response('POST only', { status: 405 }));
 
+    const SECRET = 'wt_f2c9748cbc2b5afd1045aa3d';   // must match SHARED_TOKEN in the app
     const data = await req.json();
     if (data?.type !== 'wormtrace-contribution') {
       return cors(Response.json({ ok: false, error: 'bad type' }, { status: 400 }));
+    }
+    if (SECRET && data.token !== SECRET) {
+      return cors(Response.json({ ok: false, error: 'unauthorized' }, { status: 401 }));
     }
     const key = `contrib/${(data.clientId || 'anon').slice(0, 16)}/${Date.now()}.json`;
     await env.WORMTRACE.put(key, JSON.stringify(data));   // R2 bucket bound as WORMTRACE
@@ -176,6 +191,32 @@ Bind an R2 bucket named `WORMTRACE` in the Worker settings, deploy, and use the
 Worker URL as the endpoint.
 
 ---
+
+## Pooling contributions into an improved model
+
+Once contributions pile up in your Drive folder, turn them into a fresh shipped model:
+
+1. Download the **WormTrace Contributions** folder from Drive (right-click → Download —
+   you get a zip; unzip it to a local folder).
+2. Run the bundled merge script:
+   ```bash
+   node tools/build-model.mjs path/to/unzipped-folder wormtrace-model.json
+   ```
+   It merges every contribution's feature rows, migrates old labels, de-duplicates, and
+   caps the row count — the same logic the in-app learner uses.
+3. Review the printed summary (photos, rows, per-category counts), then commit the
+   updated `wormtrace-model.json` and bump the asset version (`v=NNN`) to release it.
+
+Re-extracting features from the raw photos (for a stronger model than the current
+5-feature k-NN) is a separate, heavier step and isn't done by this script.
+
+## Anti-spam token
+
+The public `/exec` URL is in the client source, so anyone could POST to it. Each
+contribution includes a shared `token` (`SHARED_TOKEN` in `js/Contribute.js`) and the
+endpoint rejects anything that doesn't match its `SECRET`. This is **not** real security
+(the token is readable in the source) — it just stops casual/bot spam. To rotate it,
+change both `SHARED_TOKEN` and the endpoint's `SECRET` to a new value and redeploy both.
 
 ## Privacy notes
 

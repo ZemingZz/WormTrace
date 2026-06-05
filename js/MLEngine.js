@@ -13,8 +13,8 @@
  * Format: { "N2:20": { egg:1.0, l1:0.98, l2:1.05, ... }, ... }
  */
 
-import { RealWorldData } from './RealWorldData.js?v=149';
-import { getStages }     from './LifeCycle.js?v=149';
+import { RealWorldData } from './RealWorldData.js?v=150';
+import { getStages }     from './LifeCycle.js?v=150';
 
 const CORR_KEY = 'wt_ml_corrections';
 

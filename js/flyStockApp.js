@@ -8,7 +8,7 @@
  * medians from the cited papers — absolute lifespan is strongly diet/temperature/
  * background-dependent (noted on each long-lived mutant).
  */
-import { showToast, showConfirm } from './Toast.js?v=149';
+import { showToast, showConfirm } from './Toast.js?v=150';
 
 const KEY = 'drosophila_stock_v1';
 const BASE_LIFESPAN = 50;   // Canton-S median (days) — baseline for long/short classification
