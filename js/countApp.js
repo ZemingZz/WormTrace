@@ -3,10 +3,10 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=150';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=150';
-import { WormLearner } from './WormLearner.js?v=150';
-import * as Contribute from './Contribute.js?v=150';
+import { WormCounter } from './WormCounter.js?v=151';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=151';
+import { WormLearner } from './WormLearner.js?v=151';
+import * as Contribute from './Contribute.js?v=151';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -15,6 +15,9 @@ const $ = id => document.getElementById(id);
 let labeler = null;
 let images = [];     // { id, name, imgEl, thumbUrl, points: [] }
 let selected = -1;
+// Confirmed training entries this session, keyed by image id (re-confirming an image
+// replaces its entry). Exported together as ONE file instead of one-per-confirm.
+const trainingLog = new Map();   // imageId -> { type, image, labels, counts, rows }
 
 // Permissive detector settings used to gather CANDIDATE blobs for training/smart
 // pre-fill — deliberately loose so eggs/debris are captured as negatives.
@@ -51,8 +54,10 @@ function initCountTab() {
     if (confirm('Clear all marks on this photo?')) labeler.clear();
   });
   $('btnLabelExport')?.addEventListener('click', exportTraining);
+  $('btnExportAllTrain')?.addEventListener('click', exportAllTraining);
   $('btnLabelImport')?.addEventListener('click', () => $('labelImportInput').click());
   $('labelImportInput')?.addEventListener('change', onImport);
+  renderExportAll();
 
   // ── Send this photo's count into the Plate Tracker ──
   $('btnCountToPlate')?.addEventListener('click', addAsPlate);
@@ -239,16 +244,15 @@ function confirmTrain() {
   learner.addExamples(rows);
   renderLearnPanel();
 
-  // AUTO-SAVE a STANDALONE training file for THIS image only — one file per click,
-  // each independent (values do NOT add up across images).
+  // Accumulate this image's training data in memory (no file yet). Re-confirming the
+  // same photo overwrites its entry. Export everything later as ONE file.
   const data = labeler.getData();          // { type, image (with dataUrl), labels, counts }
   data.rows = rows;                         // this image's feature examples only
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  const base = (im.name || 'plate').replace(/\.[^.]+$/, '');
-  download(`wormtrace-train_${base}_${stamp}.json`, JSON.stringify(data));
+  trainingLog.set(im.id, data);
+  renderExportAll();
 
   const c = labeler.counts();
-  flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${wormTotal(c)} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
+  flash(`✓ Trained on this photo — ${wormTotal(c)} worms, ${rows.length} examples. ${trainingLog.size} photo${trainingLog.size !== 1 ? 's' : ''} queued — tap “Export all training data” when done.`);
 
   // Auto-contribute to the shared cloud model — once the user has agreed, every
   // confirmed photo flows to the central endpoint with no extra taps.
@@ -391,6 +395,29 @@ function onModelImport(e) {
   reader.readAsText(file);
 }
 
+// ── Export ALL confirmed training data as ONE file ──────────────────────────
+function exportAllTraining() {
+  if (!trainingLog.size) {
+    flash('No confirmed training yet — mark a photo and tap “Confirm & train” first.');
+    return;
+  }
+  const items = [...trainingLog.values()];
+  const totalRows  = items.reduce((s, d) => s + (d.rows?.length || 0), 0);
+  const totalWorms = items.reduce((s, d) => s + wormTotal(d.counts || {}), 0);
+  const batch = { type: 'wormtrace-training-batch', version: 1, images: items.length, rows: totalRows, items };
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  download(`wormtrace-train-all_${items.length}img_${stamp}.json`, JSON.stringify(batch));
+  flash(`Exported all training in one file — ${items.length} photos, ${totalWorms} worms, ${totalRows} examples.`);
+}
+
+// Reflect how many photos are queued for export on the button.
+function renderExportAll() {
+  const btn = $('btnExportAllTrain'); if (!btn) return;
+  const n = trainingLog.size;
+  btn.textContent = `⬇ Export all training data (${n})`;
+  btn.disabled = n === 0;
+}
+
 // ── Export / import training file ───────────────────────────────────────────
 function exportTraining() {
   if (selected < 0) return;
@@ -402,27 +429,56 @@ function exportTraining() {
   flash(`Exported ${data.labels.length} labels (${wormTotal(c)} worms) + image. Send this .json back as training material.`);
 }
 
-function onImport(e) {
+// Load one training entry ({ image, labels, ... }) as a new image; returns a promise.
+function loadTrainingItem(obj) {
+  return new Promise((resolve, reject) => {
+    if (!obj?.image?.dataUrl) { reject(new Error('entry has no image')); return; }
+    const img = new Image();
+    img.onload = () => {
+      images.push({ id: `import_${images.length}_${Date.now()}`, name: obj.image.name || 'imported', imgEl: img, thumbUrl: obj.image.dataUrl, points: [] });
+      resolve(images.length - 1);
+    };
+    img.onerror = () => reject(new Error('image failed to load'));
+    img.src = obj.image.dataUrl;
+  });
+}
+
+async function onImport(e) {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const obj = JSON.parse(ev.target.result);
-      if (obj.type !== 'wormtrace-training' || !obj.image?.dataUrl) throw new Error('Not a WormTrace training file.');
-      const img = new Image();
-      img.onload = () => {
-        images.push({ id: `import_${images.length}`, name: obj.image.name || 'imported', imgEl: img, thumbUrl: obj.image.dataUrl, points: [] });
-        selectImage(images.length - 1);
-        labeler.loadData(obj, img);
-        images[selected].points = labeler.points;
-        renderCounts(); renderThumbs();
-        flash(`Loaded ${obj.labels?.length || 0} labels from file.`);
-      };
-      img.src = obj.image.dataUrl;
-    } catch (err) { flash('Import failed: ' + err.message); }
-  };
-  reader.readAsText(file);
+  let obj;
+  try { obj = JSON.parse(await file.text()); }
+  catch (err) { flash('Import failed: ' + err.message); return; }
+
+  try {
+    // Combined batch (from "Export all training data") → load every photo it contains.
+    if (obj.type === 'wormtrace-training-batch' && Array.isArray(obj.items)) {
+      let loaded = 0;
+      for (const item of obj.items) {
+        try {
+          const idx = await loadTrainingItem(item);
+          labeler.setImage(images[idx].imgEl, images[idx].name);
+          labeler.loadData(item, images[idx].imgEl);
+          images[idx].points = labeler.points.slice();
+          loaded++;
+        } catch { /* skip bad entry */ }
+      }
+      if (!loaded) throw new Error('No usable photos in this batch file.');
+      selectImage(images.length - 1);
+      renderCounts(); renderThumbs();
+      flash(`Loaded ${loaded} photo${loaded !== 1 ? 's' : ''} from the combined training file.`);
+      return;
+    }
+
+    // Single training file (legacy / "Export image + labels").
+    if (obj.type !== 'wormtrace-training' || !obj.image?.dataUrl) throw new Error('Not a WormTrace training file.');
+    const idx = await loadTrainingItem(obj);
+    selectImage(idx);
+    labeler.loadData(obj, images[idx].imgEl);
+    images[selected].points = labeler.points;
+    renderCounts(); renderThumbs();
+    flash(`Loaded ${obj.labels?.length || 0} labels from file.`);
+  } catch (err) { flash('Import failed: ' + err.message); }
 }
 
 function download(name, text) {

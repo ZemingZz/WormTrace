@@ -24,7 +24,7 @@ export const DEFAULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxgISFM
 // source), just a low-friction gate so the public endpoint ignores casual/bot spam.
 // Must match the SECRET in the Apps Script (see docs/CONTRIBUTE_ENDPOINT.md).
 export const SHARED_TOKEN = 'wt_f2c9748cbc2b5afd1045aa3d';
-const APP_VERSION = 150;
+const APP_VERSION = 151;
 
 const EP_KEY     = 'wt_contribute_endpoint';   // per-device endpoint override
 const CID_KEY    = 'wt_client_id';             // anonymous device id

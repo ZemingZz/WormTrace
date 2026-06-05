@@ -1,6 +1,6 @@
 // WormTrace service worker — NETWORK-FIRST so updates always show,
 // falling back to cache only when offline.
-const CACHE = 'wormtrace-v8';
+const CACHE = 'wormtrace-v9';
 
 self.addEventListener('install', e => {
   self.skipWaiting();   // activate the new SW immediately

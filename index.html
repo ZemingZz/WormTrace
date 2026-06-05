@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css?v=150">
+  <link rel="stylesheet" href="css/iphone.css?v=151">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -644,6 +644,13 @@
           <!-- contribute to the shared cloud model — consent once, then auto-collect -->
           <div id="contributeBox"></div>
 
+          <!-- export every confirmed photo's training data as ONE file -->
+          <button class="btn-secondary btn-sm" id="btnExportAllTrain" style="width:auto" disabled>⬇ Export all training data (0)</button>
+          <div style="font-size:10px;color:var(--muted);line-height:1.4">
+            “Confirm &amp; train” now just adds each photo to this session’s batch (no file per photo).
+            Export them all together when you’re done.
+          </div>
+
           <details>
             <summary style="font-size:11px;font-weight:700;color:var(--muted);cursor:pointer">⚙ Model, contribute &amp; export (advanced)</summary>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
@@ -1138,25 +1145,25 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=150"></script>
-<script type="module" src="js/experimentsApp.js?v=150"></script>
-<script type="module" src="js/flyExperimentsApp.js?v=150"></script>
-<script type="module" src="js/flyStockApp.js?v=150"></script>
-<script type="module" src="js/flyPathwaysApp.js?v=150"></script>
-<script type="module" src="js/flyTrackersApp.js?v=150"></script>
-<script type="module" src="js/flySimApp.js?v=150"></script>
-<script type="module" src="js/yeastStockApp.js?v=150"></script>
-<script type="module" src="js/yeastExperimentsApp.js?v=150"></script>
-<script type="module" src="js/yeastPathwaysApp.js?v=150"></script>
-<script type="module" src="js/yeastSimApp.js?v=150"></script>
-<script type="module" src="js/literatureApp.js?v=150"></script>
-<script type="module" src="js/app.js?v=150"></script>
-<script type="module" src="js/plateApp.js?v=150"></script>
-<script type="module" src="js/countApp.js?v=150"></script>
-<script type="module" src="js/collectionApp.js?v=150"></script>
-<script type="module" src="js/pathwaysApp.js?v=150"></script>
+<script type="module" src="js/homeApp.js?v=151"></script>
+<script type="module" src="js/experimentsApp.js?v=151"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=151"></script>
+<script type="module" src="js/flyStockApp.js?v=151"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=151"></script>
+<script type="module" src="js/flyTrackersApp.js?v=151"></script>
+<script type="module" src="js/flySimApp.js?v=151"></script>
+<script type="module" src="js/yeastStockApp.js?v=151"></script>
+<script type="module" src="js/yeastExperimentsApp.js?v=151"></script>
+<script type="module" src="js/yeastPathwaysApp.js?v=151"></script>
+<script type="module" src="js/yeastSimApp.js?v=151"></script>
+<script type="module" src="js/literatureApp.js?v=151"></script>
+<script type="module" src="js/app.js?v=151"></script>
+<script type="module" src="js/plateApp.js?v=151"></script>
+<script type="module" src="js/countApp.js?v=151"></script>
+<script type="module" src="js/collectionApp.js?v=151"></script>
+<script type="module" src="js/pathwaysApp.js?v=151"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=150';
+  import { initMobile } from './js/mobile.js?v=151';
   initMobile();
 </script>
 </body>
