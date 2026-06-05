@@ -17,10 +17,10 @@
  * once per device so duplicate uploads can be de-duped server-side without PII.
  */
 
-// Default endpoint baked into the build. Leave '' to ship the feature "dormant" — the
-// maintainer (or a tester) pastes their URL in the app, which is stored per-device.
-export const DEFAULT_ENDPOINT = '';
-const APP_VERSION = 148;
+// Default endpoint baked into the build so every user contributes to the same shared
+// database automatically (no per-device setup). A user can still override it in-app.
+export const DEFAULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxgISFMwh84wr2KnZO5REgHHFxEIZGYDS7ywBWrGs1j-jv-UuvapWLl7-F7yMMePsVFkA/exec';
+const APP_VERSION = 149;
 
 const EP_KEY     = 'wt_contribute_endpoint';   // per-device endpoint override
 const CID_KEY    = 'wt_client_id';             // anonymous device id
