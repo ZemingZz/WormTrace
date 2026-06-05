@@ -3,10 +3,10 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=152';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=152';
-import { WormLearner } from './WormLearner.js?v=152';
-import * as Contribute from './Contribute.js?v=152';
+import { WormCounter } from './WormCounter.js?v=153';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=153';
+import { WormLearner } from './WormLearner.js?v=153';
+import * as Contribute from './Contribute.js?v=153';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -63,7 +63,7 @@ function initCountTab() {
   $('btnCountToPlate')?.addEventListener('click', addAsPlate);
 
   // ── In-app learning ──
-  $('btnConfirmTrain')?.addEventListener('click', confirmTrain);
+  $('btnConfirmTrain')?.addEventListener('click', confirmAndNext);
   $('btnModelExport')?.addEventListener('click', exportModel);
   $('btnModelImport')?.addEventListener('click', () => $('modelImportInput').click());
   $('modelImportInput')?.addEventListener('change', onModelImport);
@@ -134,13 +134,18 @@ function onUpload(e) {
 
 function renderThumbs() {
   const wrap = $('countThumbs');
-  wrap.innerHTML = images.map((im, i) => `
+  wrap.innerHTML = images.map((im, i) => {
+    const done = trainingLog.has(im.id);
+    const border = i === selected ? 'var(--accent)' : (done ? '#15803d' : 'transparent');
+    return `
     <div class="count-thumb" data-i="${i}" style="position:relative;width:52px;height:52px;border-radius:6px;overflow:hidden;
-      border:2px solid ${i === selected ? 'var(--accent)' : 'transparent'};cursor:pointer;flex-shrink:0">
-      <img src="${im.thumbUrl}" style="width:100%;height:100%;object-fit:cover">
+      border:2px solid ${border};cursor:pointer;flex-shrink:0">
+      <img src="${im.thumbUrl}" style="width:100%;height:100%;object-fit:cover;${done ? 'opacity:.6' : ''}">
+      ${done ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,32,26,.35);color:#34d399;font-size:20px;font-weight:900">✓</span>` : ''}
       ${im.points.length ? `<span style="position:absolute;bottom:0;right:0;background:rgba(0,0,0,.7);color:#00d4aa;font-size:9px;font-weight:700;padding:0 3px">${im.points.length}</span>` : ''}
       <button data-del="${i}" style="position:absolute;top:0;right:0;background:rgba(0,0,0,.6);color:#f87171;border:none;font-size:10px;width:14px;height:14px;cursor:pointer;padding:0">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   wrap.querySelectorAll('.count-thumb').forEach(el => el.addEventListener('click', e => {
     if (e.target.dataset.del != null) {
       images.splice(+e.target.dataset.del, 1);
@@ -201,7 +206,10 @@ function prefill() {
       const pred = learner.predict(learner.featureVec(b, res));
       if (!WORM_CATS.includes(pred.cat)) { rejected++; continue; }   // model says egg/debris
     }
-    labeler.points.push({ x, y, cat: 'l4' });
+    // Box sized to the detected blob (+padding) so the marker wraps the worm.
+    const bw = ((b.maxX - b.minX + 1) / res.scale) * 1.25;
+    const bh = ((b.maxY - b.minY + 1) / res.scale) * 1.25;
+    labeler.points.push({ x, y, cat: 'l4', w: Math.max(8, bw), h: Math.max(8, bh) });
     added++;
   }
   labeler.render(); labeler.onChange?.(labeler.counts());
@@ -236,9 +244,9 @@ function buildRows(im) {
 
 // ── Confirm & Train — commit this image's labels into the learner ────────────
 function confirmTrain() {
-  if (selected < 0) { flash('Upload a photo first.'); return; }
+  if (selected < 0) { flash('Upload a photo first.'); return false; }
   const im = images[selected];
-  if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix).'); return; }
+  if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix).'); return false; }
   const rows = buildRows(im);
   // Update the on-device model (deduped) so Smart pre-fill keeps improving.
   learner.addExamples(rows);
@@ -259,6 +267,29 @@ function confirmTrain() {
   if (Contribute.isActive()) {
     sendContribution(im, data, rows, /*silent=*/true);
   }
+  renderThumbs();   // mark this photo done in the queue strip
+  return true;
+}
+
+// ── Bulk flow: confirm this photo, then jump to the next un-done one ──────────
+function confirmAndNext() {
+  if (!confirmTrain()) return;
+  const next = nextUnlabeledIndex();
+  if (next < 0) {
+    flash(`✓ All ${images.length} photo${images.length !== 1 ? 's' : ''} done — upload more, or “Export all training data”.`);
+    return;
+  }
+  selectImage(next);
+  if (!labeler.points.length) prefill();   // auto pre-fill the next photo so it's ready to fix
+}
+
+// First image (after the current one, wrapping) that hasn't been confirmed yet.
+function nextUnlabeledIndex() {
+  for (let k = 1; k <= images.length; k++) {
+    const i = (selected + k) % images.length;
+    if (!trainingLog.has(images[i].id)) return i;
+  }
+  return -1;
 }
 
 // ── Contribute — upload this photo's training data to the shared cloud model ──

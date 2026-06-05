@@ -2,8 +2,8 @@
  * CompareCharts.js — side-by-side plate comparison charts.
  * Draws onto a single canvas: dev progress, food, stage, eggs.
  */
-import { getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=152';
-import { showToast } from './Toast.js?v=152';
+import { getStages, getCurrentStage, fmtHours } from './LifeCycle.js?v=153';
+import { showToast } from './Toast.js?v=153';
 
 const COLOURS = ['#00d4aa','#7c3aed','#f59e0b','#ef4444','#3b82f6'];
 
