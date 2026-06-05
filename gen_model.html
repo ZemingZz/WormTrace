@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>WormTrace · seed model from WormTrainer labels</title>
+<style>body{font:13px/1.5 monospace;background:#0d1117;color:#e6edf3;padding:16px}b{color:#3fb950}</style></head>
+<body>
+<h3>Seeding WormTrace model from WormTrainer training data…</h3>
+<pre id="log"></pre>
+<script type="module">
+import { WormCounter } from './js/WormCounter.js?v=146';
+import { WormLearner } from './js/WormLearner.js?v=146';
+
+const API = 'http://localhost:5600';
+// Same permissive candidate settings WormTrace uses for training (countApp TRAIN_OPTS).
+const TRAIN_OPTS = { sensitivity:16, minArea:12, maxArea:12000, minAspect:1.0, blurRadius:16 };
+// Our WormTrainer categories -> WormTrace learner categories.
+const CATMAP = { adult:'adult', baby:'l1', egg:'egg' };
+
+const logEl = document.getElementById('log');
+const log = m => { logEl.textContent += m + '\n'; };
+const loadImg = url => new Promise((res, rej) => {
+  const i = new Image(); i.crossOrigin = 'anonymous';
+  i.onload = () => res(i); i.onerror = () => rej(new Error('img')); i.src = url;
+});
+const nearest = (pts, x, y, r) => { let best=r, hit=null;
+  for (const p of pts){ const d=Math.hypot(p.x-x,p.y-y); if(d<best){best=d;hit=p;} } return hit; };
+
+(async () => {
+  const counter = new WormCounter();
+  const learner = new WormLearner();
+  learner.reset();                                   // start clean, then seed from our data
+
+  const names  = await (await fetch(API + '/api/list')).json();
+  const labels = await (await fetch(API + '/api/labels')).json();
+
+  let imgs = 0, totalRows = 0;
+  for (const name of names) {
+    const lab = labels[name];
+    if (!lab || !lab.boxes || !lab.boxes.length) continue;
+    if (name.includes('18-06-10')) { log('skip (noisy auto-eggs): ' + name); continue; }
+
+    let img;
+    try { img = await loadImg(API + '/img/' + encodeURIComponent(name)); }
+    catch (e) { log('image load failed: ' + name); continue; }
+    const W = img.naturalWidth, H = img.naturalHeight;
+
+    // our labeled boxes -> points (original px) with mapped category
+    const pts = lab.boxes.map(b => {
+      const t = (typeof b[4] === 'string') ? b[4] : 'adult';
+      return { x:((b[0]+b[2])/2)*W, y:((b[1]+b[3])/2)*H, cat:(CATMAP[t]||'none') };
+    });
+
+    const res = counter.count(img, TRAIN_OPTS);
+    const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
+    const rows = res.blobs.map(b => {
+      const x = b.cx / res.scale, y = b.cy / res.scale;
+      const near = nearest(pts, x, y, matchR);
+      return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
+    });
+    learner.addExamples(rows);                        // persists to localStorage (this origin)
+    imgs++; totalRows += rows.length;
+    log(`${name}: ${res.blobs.length} blobs → ${rows.length} rows`);
+  }
+
+  const s = learner.stats();
+  log(`\nDONE: ${imgs} images, ${s.examples} examples`);
+  log('by category: ' + JSON.stringify(s.byCat));
+  log('self-accuracy (LOO): ' + (s.accuracy != null ? Math.round(s.accuracy*100)+'%' : 'n/a'));
+  log(learner.ready() ? '<model active ✓ — WormTrace will use it for Smart pre-fill>' : '<needs more data>');
+  window.__SEED_DONE__ = true; window.__SEED_STATS__ = s;
+})().catch(e => { log('ERROR: ' + e.message); window.__SEED_DONE__ = true; window.__SEED_ERR__ = e.message; });
+</script>
+</body>
+</html>
