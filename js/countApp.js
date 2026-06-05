@@ -3,10 +3,10 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=151';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=151';
-import { WormLearner } from './WormLearner.js?v=151';
-import * as Contribute from './Contribute.js?v=151';
+import { WormCounter } from './WormCounter.js?v=152';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=152';
+import { WormLearner } from './WormLearner.js?v=152';
+import * as Contribute from './Contribute.js?v=152';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -269,7 +269,6 @@ async function sendContribution(im, data, rows, silent) {
   }
   try {
     const res = await Contribute.contribute({ image: data.image, labels: data.labels, counts: data.counts, rows });
-    if (res.skipped) { if (!silent) flash('Already contributed this photo — thanks!'); return; }
     if (res.ok) {
       flash(`☁️ Contributed ${rows.length} examples to WormTrace — thank you! Pooled data makes the model better for everyone.`);
     } else if (!silent) {

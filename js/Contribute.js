@@ -24,11 +24,10 @@ export const DEFAULT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxgISFM
 // source), just a low-friction gate so the public endpoint ignores casual/bot spam.
 // Must match the SECRET in the Apps Script (see docs/CONTRIBUTE_ENDPOINT.md).
 export const SHARED_TOKEN = 'wt_f2c9748cbc2b5afd1045aa3d';
-const APP_VERSION = 151;
+const APP_VERSION = 152;
 
 const EP_KEY     = 'wt_contribute_endpoint';   // per-device endpoint override
 const CID_KEY    = 'wt_client_id';             // anonymous device id
-const SENT_KEY   = 'wt_contributed_hashes';    // de-dup: contributions already uploaded
 const CONSENT_KEY = 'wt_contribute_consent';   // user agreed (once) to contribute
 const DISMISS_KEY = 'wt_contribute_dismissed'; // user said "not now" — don't nag again
 
@@ -70,33 +69,13 @@ function clientId() {
   } catch { return 'wt_anon'; }
 }
 
-// Stable fingerprint of a contribution's learning content (rows + labels) so the same
-// photo confirmed twice isn't uploaded twice. Cheap 32-bit hash — collisions are
-// harmless here (worst case we skip a near-identical upload).
-function fingerprint(payload) {
-  const basis = JSON.stringify({
-    r: payload.rows?.map(r => [r.f.map(x => Math.round(x * 1e4)), r.cat]),
-    l: payload.labels,
-  });
-  let h = 5381;
-  for (let i = 0; i < basis.length; i++) h = ((h * 33) ^ basis.charCodeAt(i)) >>> 0;
-  return h.toString(36);
-}
-function alreadySent(fp) {
-  try { return (JSON.parse(localStorage.getItem(SENT_KEY) || '[]')).includes(fp); } catch { return false; }
-}
-function markSent(fp) {
-  try {
-    const arr = JSON.parse(localStorage.getItem(SENT_KEY) || '[]');
-    arr.push(fp);
-    localStorage.setItem(SENT_KEY, JSON.stringify(arr.slice(-500)));   // cap history
-  } catch {}
-}
-
 /**
- * Upload one confirmed photo's training data.
+ * Upload one confirmed photo's training data to the collective dataset. By design this
+ * reports EVERY time it's called (every Confirm & train) — there is no client-side
+ * de-dup, so the shared dataset sees each labeling event. Offline pooling
+ * (tools/build-model.mjs) de-duplicates identical rows when building the model.
  * @param {{image?, labels:Array, counts:Object, rows:Array, includeImage?:boolean}} data
- * @returns {Promise<{ok:boolean, skipped?:boolean, reason?:string}>}
+ * @returns {Promise<{ok:boolean, reason?:string}>}
  */
 export async function contribute(data) {
   if (!isConfigured()) return { ok: false, reason: 'no-endpoint' };
@@ -117,9 +96,6 @@ export async function contribute(data) {
     image: includeImage ? data.image : null,   // photo only with consent
   };
 
-  const fp = fingerprint(payload);
-  if (alreadySent(fp)) return { ok: true, skipped: true };
-
   // text/plain → "simple request", no CORS preflight (works with Apps Script et al.)
   const res = await fetch(getEndpoint(), {
     method: 'POST',
@@ -128,6 +104,5 @@ export async function contribute(data) {
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
 
-  markSent(fp);
   return { ok: true };
 }

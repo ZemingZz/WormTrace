@@ -3,14 +3,14 @@
  * biohazard bin, Excel export, canvas visualisation.
  */
 
-import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=151';
-import { PlateCanvas }       from './PlateCanvas.js?v=151';
-import { showToast, showConfirm } from './Toast.js?v=151';
-import { showFeedback }      from './Feedback.js?v=151';
+import { PlateTracker, MAX_PLATE_DAYS } from './PlateTracker.js?v=152';
+import { PlateCanvas }       from './PlateCanvas.js?v=152';
+import { showToast, showConfirm } from './Toast.js?v=152';
+import { showFeedback }      from './Feedback.js?v=152';
 import {
   STRAINS, getStages, getCurrentStage, fmtHours, fmtElapsed, cumulativeFeedHours,
   STAGE_FOOD_FACTOR, DAUER, adultLifespanHours, adultLifespanDays,
-} from './LifeCycle.js?v=151';
+} from './LifeCycle.js?v=152';
 
 export const pt = new PlateTracker();
 

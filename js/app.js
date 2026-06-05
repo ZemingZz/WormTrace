@@ -1,9 +1,9 @@
-import { VideoProcessor } from './VideoProcessor.js?v=151';
-import { WormDetector }   from './WormDetector.js?v=151';
-import { WormTracker }    from './WormTracker.js?v=151';
-import { PatternEngine }  from './PatternEngine.js?v=151';
-import { Renderer }       from './Renderer.js?v=151';
-import { Troubleshooter } from './Troubleshooter.js?v=151';
+import { VideoProcessor } from './VideoProcessor.js?v=152';
+import { WormDetector }   from './WormDetector.js?v=152';
+import { WormTracker }    from './WormTracker.js?v=152';
+import { PatternEngine }  from './PatternEngine.js?v=152';
+import { Renderer }       from './Renderer.js?v=152';
+import { Troubleshooter } from './Troubleshooter.js?v=152';
 
 const ts = new Troubleshooter();
 
