@@ -3,9 +3,10 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=146';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=146';
-import { WormLearner } from './WormLearner.js?v=146';
+import { WormCounter } from './WormCounter.js?v=150';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=150';
+import { WormLearner } from './WormLearner.js?v=150';
+import * as Contribute from './Contribute.js?v=150';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -66,6 +67,16 @@ function initCountTab() {
       learner.reset(); renderLearnPanel(); flash('Model reset.');
     }
   });
+
+  // ── Contribute to the shared cloud model (agree once → auto-collect) ──
+  $('contributeBox')?.addEventListener('click', onContributeBoxClick);
+  $('contributeEndpoint')?.addEventListener('change', e => {
+    Contribute.setEndpoint(e.target.value);
+    renderContributeUI();
+    flash(Contribute.isConfigured() ? 'Saved contribution endpoint ✓' : 'Endpoint cleared.');
+  });
+  initContributeUI();
+
   renderLearnPanel();
 
   ['countSens', 'countMin', 'countMax'].forEach(id => {
@@ -207,18 +218,23 @@ function addAsPlate() {
   flash(`🧫 Created a plate — ${res.worms} worm${res.worms !== 1 ? 's' : ''} across ${res.cohorts} stage${res.cohorts !== 1 ? 's' : ''} (dominant ${res.startStage.toUpperCase()}), one cohort per stage. Inoculated at N2/20°C — change strain/temp on the plate if needed.`);
 }
 
+// Extract this image's labeled feature rows (the examples the model learns from).
+function buildRows(im) {
+  const res = counter.count(im.imgEl, TRAIN_OPTS);   // permissive candidates
+  const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
+  return res.blobs.map(b => {
+    const x = b.cx / res.scale, y = b.cy / res.scale;
+    const near = nearestPoint(labeler.points, x, y, matchR);
+    return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
+  });
+}
+
 // ── Confirm & Train — commit this image's labels into the learner ────────────
 function confirmTrain() {
   if (selected < 0) { flash('Upload a photo first.'); return; }
   const im = images[selected];
   if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix).'); return; }
-  const res = counter.count(im.imgEl, TRAIN_OPTS);   // permissive candidates
-  const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
-  const rows = res.blobs.map(b => {
-    const x = b.cx / res.scale, y = b.cy / res.scale;
-    const near = nearestPoint(labeler.points, x, y, matchR);
-    return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
-  });
+  const rows = buildRows(im);
   // Update the on-device model (deduped) so Smart pre-fill keeps improving.
   learner.addExamples(rows);
   renderLearnPanel();
@@ -233,6 +249,42 @@ function confirmTrain() {
 
   const c = labeler.counts();
   flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${wormTotal(c)} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
+
+  // Auto-contribute to the shared cloud model — once the user has agreed, every
+  // confirmed photo flows to the central endpoint with no extra taps.
+  if (Contribute.isActive()) {
+    sendContribution(im, data, rows, /*silent=*/true);
+  }
+}
+
+// ── Contribute — upload this photo's training data to the shared cloud model ──
+async function sendContribution(im, data, rows, silent) {
+  if (!Contribute.isConfigured()) {
+    if (!silent) flash('No contribution endpoint set yet — open ⚙ Model & export and paste the WormTrace upload URL.');
+    return;
+  }
+  try {
+    const res = await Contribute.contribute({ image: data.image, labels: data.labels, counts: data.counts, rows });
+    if (res.skipped) { if (!silent) flash('Already contributed this photo — thanks!'); return; }
+    if (res.ok) {
+      flash(`☁️ Contributed ${rows.length} examples to WormTrace — thank you! Pooled data makes the model better for everyone.`);
+    } else if (!silent) {
+      flash('Contribution skipped: ' + (res.reason || 'unknown'));
+    }
+  } catch (err) {
+    if (!silent) flash('Contribution failed: ' + err.message + ' (your local model still updated).');
+  }
+}
+
+// Send whatever's currently marked right now (used the moment a user opts in, so
+// they see an immediate "thank you" instead of waiting for the next confirm).
+function contributeCurrentIfAny() {
+  if (selected < 0 || !labeler.points.length || !Contribute.isActive()) return;
+  const data = labeler.getData();
+  const rows = buildRows(data && images[selected]);
+  learner.addExamples(rows);   // also fold into the on-device model
+  renderLearnPanel();
+  sendContribution(images[selected], data, rows, /*silent=*/false);
 }
 
 function renderLearnPanel() {
@@ -246,6 +298,74 @@ function renderLearnPanel() {
     `<b style="color:#00d4aa">${s.images}</b> images · <b style="color:#00d4aa">${s.examples}</b> examples · self-accuracy <b>${acc}</b>` +
     (learner.ready() ? ' · <span style="color:#22c55e">model active ✓</span>' : ' · <span style="color:#fbbf24">needs more data</span>') +
     `<br><span style="color:#64748b">${cats}</span>`;
+}
+
+// ── Contribute UI — one-time consent, then silent auto-collect ──────────────
+function initContributeUI() {
+  const ep = $('contributeEndpoint'); if (ep) ep.value = Contribute.getEndpoint();
+  renderContributeUI();
+}
+
+// All states render into #contributeBox; buttons carry data-act and are handled
+// by event delegation in onContributeBoxClick.
+function renderContributeUI() {
+  const box = $('contributeBox'); if (!box) return;
+
+  if (!Contribute.isConfigured()) {            // no central endpoint baked in / set yet
+    box.innerHTML = `<div style="font-size:10px;color:#64748b;line-height:1.4">
+      Contributing to the shared model isn’t set up yet. Your labels still train the
+      on-device model. <span style="color:#475569">(Set an upload URL in ⚙ advanced.)</span></div>`;
+    return;
+  }
+
+  if (Contribute.isActive()) {                 // agreed → live
+    box.innerHTML = `<div style="background:#052e22;border:1px solid #16734f;border-radius:8px;padding:9px 10px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">✅</span>
+      <div style="flex:1;font-size:11px;line-height:1.4;color:#9ae6c4">
+        <b>Contributing to WormTrace.</b> Every photo you Confirm &amp; train is sent to the
+        shared database automatically — thank you!</div>
+      <button class="btn-secondary btn-sm" data-act="stop" style="width:auto;flex-shrink:0">Stop</button>
+    </div>`;
+    return;
+  }
+
+  if (Contribute.isDismissed()) {              // said "not now" earlier → quiet enable
+    box.innerHTML = `<button class="btn-secondary btn-sm" data-act="optin" style="width:auto">☁️ Contribute to WormTrace</button>`;
+    return;
+  }
+
+  // First-run invitation — agree once.
+  box.innerHTML = `<div style="background:#0c2433;border:1px solid #1f5169;border-radius:8px;padding:11px;display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:12px;font-weight:700;color:#7dd3fc">🤝 Help improve WormTrace</div>
+    <div style="font-size:11px;line-height:1.5;color:#cbd5e1">
+      Send your worm labels <b>and photos</b> to a shared database so the counter gets
+      smarter for everyone. One person’s data is limited — pooled, it trains a real model.
+      <br><span style="color:#64748b">Anonymous: no name or email, just a random device id. You can stop anytime.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary btn-sm" data-act="optin" style="width:auto;background:#0ea5e9">Yes, contribute</button>
+      <button class="btn-secondary btn-sm" data-act="dismiss" style="width:auto">Not now</button>
+    </div>
+  </div>`;
+}
+
+function onContributeBoxClick(e) {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  if (act === 'optin') {
+    Contribute.setConsent(true);
+    renderContributeUI();
+    flash('🤝 Thanks for contributing to WormTrace! Your confirmed photos now help train the shared model.');
+    contributeCurrentIfAny();                  // send what's already marked, instantly
+  } else if (act === 'dismiss') {
+    Contribute.setDismissed(true);
+    renderContributeUI();
+  } else if (act === 'stop') {
+    Contribute.setConsent(false);
+    Contribute.setDismissed(true);             // don't immediately re-prompt
+    renderContributeUI();
+    flash('Stopped contributing. Your labels still train the on-device model.');
+  }
 }
 
 // ── Model export / merge / —──────────────────────────────────────────────────
