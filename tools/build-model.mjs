@@ -37,22 +37,35 @@ let images = 0, considered = 0, kept = 0, badFiles = 0;
 const seen = new Set();
 const rows = [];
 
+// One file may be a single contribution/training object, OR a combined batch with an
+// items[] array (from the app's "Export all training data"). Normalize to a list of
+// entries that each carry their own `rows`.
+function entriesFrom(obj) {
+  if (obj?.type === 'wormtrace-training-batch' && Array.isArray(obj.items)) return obj.items;
+  if ((obj?.type === 'wormtrace-contribution' || obj?.type === 'wormtrace-training') && Array.isArray(obj.rows)) return [obj];
+  return null;
+}
+
 for (const f of files) {
   let obj;
   try { obj = JSON.parse(readFileSync(join(resolve(inDir), f), 'utf8')); }
   catch { badFiles++; continue; }
-  if (obj?.type !== 'wormtrace-contribution' || !Array.isArray(obj.rows)) { badFiles++; continue; }
-  images += obj.images || 1;                             // 1 photo per contribution
+  const entries = entriesFrom(obj);
+  if (!entries) { badFiles++; continue; }
 
-  for (const r of obj.rows) {
-    considered++;
-    if (!Array.isArray(r.f) || r.f.length !== FEATS || !r.cat) continue;
-    const cat = CAT_MIGRATE[r.cat] || r.cat;
-    if (!VALID_CATS.has(cat)) continue;
-    const row = { f: r.f.map(Number), cat };
-    const k = rowKey(row);
-    if (seen.has(k)) continue;                           // drop exact duplicates
-    seen.add(k); rows.push(row); kept++;
+  for (const entry of entries) {
+    if (!Array.isArray(entry.rows)) continue;
+    images++;                                            // 1 photo per entry
+    for (const r of entry.rows) {
+      considered++;
+      if (!Array.isArray(r.f) || r.f.length !== FEATS || !r.cat) continue;
+      const cat = CAT_MIGRATE[r.cat] || r.cat;
+      if (!VALID_CATS.has(cat)) continue;
+      const row = { f: r.f.map(Number), cat };
+      const k = rowKey(row);
+      if (seen.has(k)) continue;                         // drop exact duplicates
+      seen.add(k); rows.push(row); kept++;
+    }
   }
 }
 
