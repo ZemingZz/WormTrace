@@ -39,11 +39,56 @@ A single `POST` with a JSON body (sent as `text/plain` to avoid a CORS preflight
 
 ## Option A — Google Apps Script Web App (free, zero infrastructure)
 
-Gives you a public HTTPS URL with no server to host. It saves each contribution as a
-JSON file in a Google Drive folder and appends a summary row to a Sheet.
+Gives you a public HTTPS URL with no server to host.
 
-1. Create a new Google Sheet. **Extensions → Apps Script**.
-2. Replace `Code.gs` with:
+### Simplest (recommended): standalone, saves to Drive only
+
+No spreadsheet, nothing to bind — every contribution becomes a JSON file in one Drive
+folder. This is the least fiddly path and matches the "agree once, auto-collect" flow.
+
+1. Go to **script.google.com → New project**.
+2. Delete `function myFunction(){}` and paste:
+
+```javascript
+// WormTrace contribution receiver (standalone). Saves each upload as a JSON
+// file in a Drive folder. No spreadsheet binding required.
+const FOLDER_NAME = 'WormTrace Contributions';
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    if (data.type !== 'wormtrace-contribution') return json_({ ok: false, error: 'bad type' });
+
+    const folder = getFolder_(FOLDER_NAME);
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fname = `contrib_${(data.clientId || 'anon').slice(0, 16)}_${stamp}.json`;
+    folder.createFile(fname, JSON.stringify(data), 'application/json');
+    return json_({ ok: true });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
+}
+function getFolder_(name) {
+  const it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+3. **Deploy → New deployment → Web app**: *Execute as* **Me**, *Who has access* **Anyone**. Deploy & authorize.
+4. Copy the Web app URL (ends in `/exec`). Paste it into the app, or bake it into
+   `DEFAULT_ENDPOINT` in `js/Contribute.js` so every user contributes automatically.
+
+To pool later: download the folder, feed each file's `rows` into
+`WormLearner.importMerge()` (or re-extract features from the saved `image`s), and ship
+the result as `wormtrace-model.json`.
+
+### Variant: also log a summary row to a Sheet
+
+If you'd like an at-a-glance table, create the script **from a Sheet** (open a new
+Google Sheet → **Extensions → Apps Script**, which auto-binds it) and use this instead:
 
 ```javascript
 // WormTrace contribution receiver.

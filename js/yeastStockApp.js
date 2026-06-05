@@ -8,7 +8,7 @@
  * medians from the cited papers — absolute lifespan is strongly diet/temperature/
  * background-dependent (noted on each long-lived mutant).
  */
-import { showToast, showConfirm } from './Toast.js?v=147';
+import { showToast, showConfirm } from './Toast.js?v=148';
 
 const KEY = 'yeast_stock_v1';
 const BASE_LIFESPAN = 25;   // BY4741 replicative lifespan (~25 divisions) — baseline for long/short

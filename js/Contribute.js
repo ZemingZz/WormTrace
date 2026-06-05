@@ -20,12 +20,13 @@
 // Default endpoint baked into the build. Leave '' to ship the feature "dormant" — the
 // maintainer (or a tester) pastes their URL in the app, which is stored per-device.
 export const DEFAULT_ENDPOINT = '';
-const APP_VERSION = 147;
+const APP_VERSION = 148;
 
 const EP_KEY     = 'wt_contribute_endpoint';   // per-device endpoint override
 const CID_KEY    = 'wt_client_id';             // anonymous device id
 const SENT_KEY   = 'wt_contributed_hashes';    // de-dup: contributions already uploaded
-const CONSENT_KEY = 'wt_contribute_consent';   // user OK'd sending their photos
+const CONSENT_KEY = 'wt_contribute_consent';   // user agreed (once) to contribute
+const DISMISS_KEY = 'wt_contribute_dismissed'; // user said "not now" — don't nag again
 
 export function getEndpoint() {
   try { return (localStorage.getItem(EP_KEY) || DEFAULT_ENDPOINT || '').trim(); }
@@ -39,8 +40,20 @@ export function setEndpoint(url) {
 }
 export function isConfigured() { return /^https?:\/\//i.test(getEndpoint()); }
 
+// A single "I agree to contribute" flag. Agreeing covers BOTH the numeric features
+// and the photo — the consent copy says so — so there's nothing else to toggle.
 export function hasConsent() { try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch { return false; } }
-export function setConsent(v) { try { v ? localStorage.setItem(CONSENT_KEY, '1') : localStorage.removeItem(CONSENT_KEY); } catch {} }
+export function setConsent(v) {
+  try {
+    if (v) { localStorage.setItem(CONSENT_KEY, '1'); localStorage.removeItem(DISMISS_KEY); }
+    else localStorage.removeItem(CONSENT_KEY);
+  } catch {}
+}
+export function isDismissed() { try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; } }
+export function setDismissed(v) { try { v ? localStorage.setItem(DISMISS_KEY, '1') : localStorage.removeItem(DISMISS_KEY); } catch {} }
+
+// Contributing is live when we have somewhere to send AND the user has agreed.
+export function isActive() { return isConfigured() && hasConsent(); }
 
 function clientId() {
   try {
