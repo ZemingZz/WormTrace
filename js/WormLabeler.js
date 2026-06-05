@@ -1,10 +1,14 @@
 /**
  * WormLabeler — interactive image-labeling canvas for the Worm Counter tab.
- * Tap to drop categorized dots, pinch/scroll to zoom, drag to pan. Exports a
- * self-contained training file (image + labeled points) for later upload.
+ * Tap to drop categorized BOXES (training-tool style) that wrap each worm,
+ * pinch/scroll to zoom, drag to pan. With a stage selected, tapping an existing
+ * box re-tags it to that stage; tapping a same-stage box removes it. Exports a
+ * self-contained training file (image + labeled marks) for later upload.
  *
  * Built for clumped/dense plates where the auto-counter struggles: the human
- * marks each worm (zoomed in), and those labels become training data.
+ * marks each worm (zoomed in), and those labels become training data. A mark is
+ * {x,y,cat} (center + stage) plus optional {w,h} box size for display only —
+ * training/feature extraction uses the center, so the data model is unchanged.
  */
 // Life-stage labels — match the Plate Tracker stages 1:1 (ids/colors from
 // LifeCycle.js BASE_STAGES) so a labelled photo maps straight onto plate cohorts.
@@ -57,8 +61,8 @@ export class WormLabeler {
   clear()          { this.points = []; this.render(); this._changed(); }
 
   prefill(pts, cat = 'l4') {
-    // pts: [{x,y}] in image coords (from the auto-detector)
-    for (const p of pts) this.points.push({ x: p.x, y: p.y, cat });
+    // pts: [{x,y,w?,h?}] in image coords (from the auto-detector). w/h size the box.
+    for (const p of pts) this.points.push({ x: p.x, y: p.y, cat: p.cat || cat, w: p.w, h: p.h });
     this.render(); this._changed();
   }
 
@@ -77,14 +81,18 @@ export class WormLabeler {
         height: this.img.naturalHeight || this.img.height,
         dataUrl: this._imageDataUrl(),
       } : null,
-      labels: this.points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), cat: p.cat })),
+      // x,y,cat drive training (unchanged); w,h are optional box sizes for display.
+      labels: this.points.map(p => ({
+        x: Math.round(p.x), y: Math.round(p.y), cat: p.cat,
+        ...(p.w ? { w: Math.round(p.w), h: Math.round(p.h) } : {}),
+      })),
       counts: this.counts(),
     };
   }
 
   loadData(obj, imgEl) {
     if (imgEl) { this.img = imgEl; this.imgName = obj.image?.name || ''; }
-    this.points = (obj.labels || []).map(p => ({ x: p.x, y: p.y, cat: migrateCat(p.cat) }));
+    this.points = (obj.labels || []).map(p => ({ x: p.x, y: p.y, cat: migrateCat(p.cat), w: p.w, h: p.h }));
     this._resize(); this._fit(); this.render(); this._changed();
   }
 
@@ -109,15 +117,47 @@ export class WormLabeler {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.img, 0, 0);
 
-    // dots at constant screen size
+    // box markers (training-tool style) at constant screen line width
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const def = this._defaultBox();
+    ctx.font = '700 10px -apple-system, sans-serif';
+    ctx.textBaseline = 'bottom';
     for (const p of this.points) {
-      const sx = p.x * this.scale + this.tx, sy = p.y * this.scale + this.ty;
-      if (sx < -10 || sy < -10 || sx > cssW + 10 || sy > cssH + 10) continue;
-      ctx.beginPath(); ctx.arc(sx, sy, 5, 0, 2 * Math.PI);
-      ctx.fillStyle = (LABEL_CATS[p.cat] || LABEL_CATS.l4).color;
-      ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
+      const r = this._boxScreenRect(p, def);
+      if (r.x > cssW + 8 || r.y > cssH + 8 || r.x + r.w < -8 || r.y + r.h < -8) continue;
+      const col = (LABEL_CATS[p.cat] || LABEL_CATS.l4).color;
+      ctx.fillStyle = col + '26';                 // ~15% translucent fill
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.lineWidth = 2; ctx.strokeStyle = col;
+      ctx.strokeRect(r.x, r.y, r.w, r.h);
+      // stage tag in the corner when the box is big enough to read
+      if (r.w >= 22 && r.h >= 18) {
+        const tag = (LABEL_CATS[p.cat] || LABEL_CATS.l4).label;
+        const tw = ctx.measureText(tag).width + 6;
+        ctx.fillStyle = col;
+        ctx.fillRect(r.x, r.y - 12, tw, 12);
+        ctx.fillStyle = '#04201a';
+        ctx.fillText(tag, r.x + 3, r.y);
+      }
     }
+  }
+
+  // Screen-space rect for a mark's box, with a minimum tappable size.
+  _boxScreenRect(p, def) {
+    const w = Math.max(14, ((p.w || def.w) * this.scale));
+    const h = Math.max(14, ((p.h || def.h) * this.scale));
+    const cx = p.x * this.scale + this.tx, cy = p.y * this.scale + this.ty;
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
+  }
+  // Default box size (image px) — median of boxed marks, else a fraction of the image.
+  _defaultBox() {
+    const ws = [], hs = [];
+    for (const p of this.points) { if (p.w) ws.push(p.w); if (p.h) hs.push(p.h); }
+    const med = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+    const iw = this.img ? (this.img.naturalWidth || this.img.width) : 300;
+    const ih = this.img ? (this.img.naturalHeight || this.img.height) : 300;
+    const fallback = Math.max(10, Math.round(Math.min(iw, ih) * 0.045));
+    return { w: med(ws) || fallback, h: med(hs) || fallback };
   }
 
   // ── Geometry ──────────────────────────────────────────────────────────────
@@ -202,21 +242,36 @@ export class WormLabeler {
     if (this._pointers.size === 0) this._gesture = null;
   }
   _tap(sx, sy) {
-    // erase if tapping near an existing dot (always), else add in add-mode
-    let nearest = -1, best = HIT_RADIUS;
-    for (let i = 0; i < this.points.length; i++) {
-      const dx = (this.points[i].x * this.scale + this.tx) - sx;
-      const dy = (this.points[i].y * this.scale + this.ty) - sy;
-      const d = Math.hypot(dx, dy);
-      if (d < best) { best = d; nearest = i; }
-    }
+    const hit = this._hitTest(sx, sy);
     if (this.mode === 'erase') {
-      if (nearest >= 0) this.points.splice(nearest, 1);
+      if (hit >= 0) this.points.splice(hit, 1);
+    } else if (hit >= 0) {
+      // Tapping a box: re-tag it to the selected stage, or remove it if already that stage.
+      if (this.points[hit].cat !== this.cat) this.points[hit].cat = this.cat;
+      else this.points.splice(hit, 1);
     } else {
-      if (nearest >= 0) this.points.splice(nearest, 1);   // tap existing dot removes it
-      else { const ip = this._screenToImage(sx, sy); this.points.push({ x: ip.x, y: ip.y, cat: this.cat }); }
+      // Empty space: drop a new box (sized like the others) at the tap.
+      const ip = this._screenToImage(sx, sy);
+      const def = this._defaultBox();
+      this.points.push({ x: ip.x, y: ip.y, cat: this.cat, w: def.w, h: def.h });
     }
     this.render(); this._changed();
+  }
+  // Index of the smallest box containing the screen point (so overlapping marks are
+  // selectable), falling back to the nearest center within a small radius.
+  _hitTest(sx, sy) {
+    const def = this._defaultBox();
+    let best = -1, bestArea = Infinity, nearest = -1, nd = HIT_RADIUS;
+    for (let i = 0; i < this.points.length; i++) {
+      const r = this._boxScreenRect(this.points[i], def);
+      if (sx >= r.x && sx <= r.x + r.w && sy >= r.y && sy <= r.y + r.h) {
+        const a = r.w * r.h;
+        if (a < bestArea) { bestArea = a; best = i; }
+      }
+      const d = Math.hypot(r.x + r.w / 2 - sx, r.y + r.h / 2 - sy);
+      if (d < nd) { nd = d; nearest = i; }
+    }
+    return best >= 0 ? best : nearest;
   }
 
   _imageDataUrl() {

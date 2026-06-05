@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WormTrace">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/iphone.css?v=152">
+  <link rel="stylesheet" href="css/iphone.css?v=153">
 </head>
 <body>
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
@@ -558,20 +558,20 @@
       <details style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:8px 11px">
         <summary style="font-size:12px;font-weight:700;color:var(--accent);cursor:pointer">📖 How to train the counter — tap to show/hide</summary>
         <ol style="font-size:11px;color:#cbd5e1;line-height:1.6;margin:8px 0 6px;padding-left:18px">
-          <li><b>Upload</b> a clear, top-down plate photo. <b>Worm-packed photos help most</b> — debris-only ones don't.</li>
-          <li>Tap <b>✨ Auto pre-fill</b> — it finds the worms and marks them (all as <b>L4</b>).</li>
-          <li><b>Zoom in</b> (pinch, or the <b>+</b> button) and clean it up:
+          <li><b>Upload many photos at once</b> — they queue up as thumbnails. <b>Worm-packed photos help most</b>.</li>
+          <li>Tap <b>✨ Auto pre-fill</b> — it boxes the worms it finds (all as <b>L4</b>). New photos pre-fill automatically as you advance.</li>
+          <li><b>Fix fast</b> (pinch or <b>+</b> to zoom):
             <ul style="margin:3px 0;padding-left:16px">
-              <li>Tap an <b>unmarked worm</b> to add it · tap a dot again to <b>remove</b> a wrong one.</li>
-              <li>For smaller worms: tap <span style="color:#34d399;font-weight:700">● L1</span> or <span style="color:#60a5fa;font-weight:700">● L2</span> (or any stage) in the palette first, then tap them.</li>
-              <li>Use <b>🧽 Erase</b> mode to clear several wrong dots quickly.</li>
+              <li>Tap an <b>unboxed worm</b> to add it · tap a same-stage box to <b>remove</b> it.</li>
+              <li><b>Re-tag in one tap:</b> pick a stage like <span style="color:#34d399;font-weight:700">● L1</span> / <span style="color:#60a5fa;font-weight:700">● L2</span> then tap any box to switch it to that stage.</li>
+              <li>Use <b>🧽 Erase</b> mode to clear several wrong boxes quickly.</li>
             </ul>
           </li>
-          <li>Tap <b>✓ Confirm &amp; train</b> — this <b>auto-saves a file for this photo</b> and teaches the on-device model.</li>
-          <li><b>Load the next photo</b> and repeat. The model gets better each time.</li>
+          <li>Tap <b>✓ Confirm &amp; Next ▶</b> — trains the model and jumps to the next photo. Done photos show a green ✓.</li>
+          <li>When the queue is done, tap <b>⬇ Export all training data</b> for one combined file.</li>
         </ol>
         <div style="font-size:10px;color:var(--muted);line-height:1.55;border-top:1px solid var(--border);padding-top:6px">
-          <b>Tips:</b> &nbsp;• Use a <b>new, different photo every time</b> — re-marking the same one adds nothing (it gets de-duplicated). &nbsp;• The app reliably tells <b>worm vs. debris</b>, but <b>you assign each worm's stage</b> (L1–L4 / Adult). &nbsp;• Collect <b>more young stages (L1–L2)</b> — those help most right now. &nbsp;• Send your saved <code>.json</code> files back to pool everyone's training data.
+          <b>Tips:</b> &nbsp;• Use a <b>new, different photo every time</b> — each fresh photo adds the most. &nbsp;• The app reliably tells <b>worm vs. debris</b>, but <b>you assign each worm's stage</b> (L1–L4 / Adult). &nbsp;• Collect <b>more young stages (L1–L2)</b> — those help most right now. &nbsp;• If you opted in, confirmed photos auto-contribute to the shared model.
         </div>
       </details>
 
@@ -609,7 +609,7 @@
           <button class="btn-secondary btn-sm" id="btnPrefill" style="width:auto">✨ Auto pre-fill</button>
           <button class="btn-secondary btn-sm" id="btnLabelClear" style="width:auto">🗑 Clear</button>
         </div>
-        <div style="font-size:10px;color:var(--muted)">Pinch or tap + to zoom into clumps. Tap a worm to mark it; tap a dot again to remove it. Drag to pan.</div>
+        <div style="font-size:10px;color:var(--muted)">Tap a worm to box it. With a stage selected, tap a box to <b>re-tag</b> it to that stage; tap a same-stage box to remove it. Pinch / + to zoom into clumps, drag to pan.</div>
 
         <!-- detector settings (used by Auto pre-fill) -->
         <details>
@@ -630,8 +630,8 @@
           </div>
         </details>
 
-        <!-- confirm & train -->
-        <button class="btn-primary" id="btnConfirmTrain" style="background:#15803d">✓ Confirm &amp; train — saves this image as a file</button>
+        <!-- confirm & train, then jump to the next photo -->
+        <button class="btn-primary" id="btnConfirmTrain" style="background:#15803d">✓ Confirm &amp; Next ▶</button>
 
         <!-- create a Plate Tracker plate from this photo's count -->
         <button class="btn-primary" id="btnCountToPlate" style="background:#0d6efd">🧫 Add as plate → Plate Tracker</button>
@@ -1145,25 +1145,25 @@ document.addEventListener('DOMContentLoaded',function(){
   var pt=document.getElementById('plateTab');if(pt){pt.style.display='flex';pt.style.flexDirection='column';pt.style.gridTemplateColumns='none';}
 });
 </script>
-<script type="module" src="js/homeApp.js?v=152"></script>
-<script type="module" src="js/experimentsApp.js?v=152"></script>
-<script type="module" src="js/flyExperimentsApp.js?v=152"></script>
-<script type="module" src="js/flyStockApp.js?v=152"></script>
-<script type="module" src="js/flyPathwaysApp.js?v=152"></script>
-<script type="module" src="js/flyTrackersApp.js?v=152"></script>
-<script type="module" src="js/flySimApp.js?v=152"></script>
-<script type="module" src="js/yeastStockApp.js?v=152"></script>
-<script type="module" src="js/yeastExperimentsApp.js?v=152"></script>
-<script type="module" src="js/yeastPathwaysApp.js?v=152"></script>
-<script type="module" src="js/yeastSimApp.js?v=152"></script>
-<script type="module" src="js/literatureApp.js?v=152"></script>
-<script type="module" src="js/app.js?v=152"></script>
-<script type="module" src="js/plateApp.js?v=152"></script>
-<script type="module" src="js/countApp.js?v=152"></script>
-<script type="module" src="js/collectionApp.js?v=152"></script>
-<script type="module" src="js/pathwaysApp.js?v=152"></script>
+<script type="module" src="js/homeApp.js?v=153"></script>
+<script type="module" src="js/experimentsApp.js?v=153"></script>
+<script type="module" src="js/flyExperimentsApp.js?v=153"></script>
+<script type="module" src="js/flyStockApp.js?v=153"></script>
+<script type="module" src="js/flyPathwaysApp.js?v=153"></script>
+<script type="module" src="js/flyTrackersApp.js?v=153"></script>
+<script type="module" src="js/flySimApp.js?v=153"></script>
+<script type="module" src="js/yeastStockApp.js?v=153"></script>
+<script type="module" src="js/yeastExperimentsApp.js?v=153"></script>
+<script type="module" src="js/yeastPathwaysApp.js?v=153"></script>
+<script type="module" src="js/yeastSimApp.js?v=153"></script>
+<script type="module" src="js/literatureApp.js?v=153"></script>
+<script type="module" src="js/app.js?v=153"></script>
+<script type="module" src="js/plateApp.js?v=153"></script>
+<script type="module" src="js/countApp.js?v=153"></script>
+<script type="module" src="js/collectionApp.js?v=153"></script>
+<script type="module" src="js/pathwaysApp.js?v=153"></script>
 <script type="module">
-  import { initMobile } from './js/mobile.js?v=152';
+  import { initMobile } from './js/mobile.js?v=153';
   initMobile();
 </script>
 </body>
