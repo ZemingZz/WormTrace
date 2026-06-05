@@ -3,9 +3,10 @@
  * with the detector, then hand-correct by tapping (zoomed in) — built for clumped
  * plates. Export the image + labels as a training file for later upload.
  */
-import { WormCounter } from './WormCounter.js?v=146';
-import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=146';
-import { WormLearner } from './WormLearner.js?v=146';
+import { WormCounter } from './WormCounter.js?v=147';
+import { WormLabeler, LABEL_CATS } from './WormLabeler.js?v=147';
+import { WormLearner } from './WormLearner.js?v=147';
+import * as Contribute from './Contribute.js?v=147';
 
 const counter = new WormCounter();
 const learner = new WormLearner();
@@ -66,6 +67,19 @@ function initCountTab() {
       learner.reset(); renderLearnPanel(); flash('Model reset.');
     }
   });
+
+  // ── Contribute to the shared cloud model ──
+  $('btnContribute')?.addEventListener('click', contributeCurrent);
+  $('chkContributeConsent')?.addEventListener('change', e => {
+    Contribute.setConsent(e.target.checked);
+  });
+  $('contributeEndpoint')?.addEventListener('change', e => {
+    Contribute.setEndpoint(e.target.value);
+    renderContributeUI();
+    flash(Contribute.isConfigured() ? 'Saved contribution endpoint ✓' : 'Endpoint cleared.');
+  });
+  initContributeUI();
+
   renderLearnPanel();
 
   ['countSens', 'countMin', 'countMax'].forEach(id => {
@@ -207,18 +221,23 @@ function addAsPlate() {
   flash(`🧫 Created a plate — ${res.worms} worm${res.worms !== 1 ? 's' : ''} across ${res.cohorts} stage${res.cohorts !== 1 ? 's' : ''} (dominant ${res.startStage.toUpperCase()}), one cohort per stage. Inoculated at N2/20°C — change strain/temp on the plate if needed.`);
 }
 
+// Extract this image's labeled feature rows (the examples the model learns from).
+function buildRows(im) {
+  const res = counter.count(im.imgEl, TRAIN_OPTS);   // permissive candidates
+  const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
+  return res.blobs.map(b => {
+    const x = b.cx / res.scale, y = b.cy / res.scale;
+    const near = nearestPoint(labeler.points, x, y, matchR);
+    return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
+  });
+}
+
 // ── Confirm & Train — commit this image's labels into the learner ────────────
 function confirmTrain() {
   if (selected < 0) { flash('Upload a photo first.'); return; }
   const im = images[selected];
   if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix).'); return; }
-  const res = counter.count(im.imgEl, TRAIN_OPTS);   // permissive candidates
-  const matchR = Math.max(12, (res.medianMajor / res.scale) * 0.8);
-  const rows = res.blobs.map(b => {
-    const x = b.cx / res.scale, y = b.cy / res.scale;
-    const near = nearestPoint(labeler.points, x, y, matchR);
-    return { f: learner.featureVec(b, res), cat: near ? near.cat : 'none' };
-  });
+  const rows = buildRows(im);
   // Update the on-device model (deduped) so Smart pre-fill keeps improving.
   learner.addExamples(rows);
   renderLearnPanel();
@@ -233,6 +252,46 @@ function confirmTrain() {
 
   const c = labeler.counts();
   flash(`✓ Saved "wormtrace-train_${base}_${stamp}.json" — ${wormTotal(c)} worms, ${rows.length} examples (this image only). Load the next photo to keep going.`);
+
+  // Auto-contribute to the shared cloud model if the user opted in.
+  if ($('chkAutoContribute')?.checked && Contribute.isConfigured()) {
+    sendContribution(im, data, rows, /*silent=*/true);
+  }
+}
+
+// ── Contribute — upload this photo's training data to the shared cloud model ──
+async function sendContribution(im, data, rows, silent) {
+  if (!Contribute.isConfigured()) {
+    if (!silent) flash('No contribution endpoint set yet — open ⚙ Model & export and paste the WormTrace upload URL.');
+    return;
+  }
+  try {
+    const res = await Contribute.contribute({ image: data.image, labels: data.labels, counts: data.counts, rows });
+    if (res.skipped) { if (!silent) flash('Already contributed this photo — thanks!'); return; }
+    if (res.ok) {
+      const withImg = Contribute.hasConsent() ? ' (with photo)' : ' (features only)';
+      flash(`☁️ Contributed ${rows.length} examples${withImg} to WormTrace. Thank you — pooled data makes the model better for everyone!`);
+    } else {
+      if (!silent) flash('Contribution skipped: ' + (res.reason || 'unknown'));
+    }
+  } catch (err) {
+    if (!silent) flash('Contribution failed: ' + err.message + ' (your local model still updated).');
+  }
+}
+
+function contributeCurrent() {
+  if (selected < 0) { flash('Upload and mark a photo first.'); return; }
+  const im = images[selected];
+  if (!labeler.points.length) { flash('Mark some worms first (use ✨ pre-fill, then fix), then contribute.'); return; }
+  if (!Contribute.isConfigured()) {
+    flash('No contribution endpoint set yet — open ⚙ Model & export and paste the WormTrace upload URL.');
+    return;
+  }
+  const data = labeler.getData();
+  const rows = buildRows(im);
+  learner.addExamples(rows);   // also fold into the on-device model
+  renderLearnPanel();
+  sendContribution(im, data, rows, /*silent=*/false);
 }
 
 function renderLearnPanel() {
@@ -246,6 +305,24 @@ function renderLearnPanel() {
     `<b style="color:#00d4aa">${s.images}</b> images · <b style="color:#00d4aa">${s.examples}</b> examples · self-accuracy <b>${acc}</b>` +
     (learner.ready() ? ' · <span style="color:#22c55e">model active ✓</span>' : ' · <span style="color:#fbbf24">needs more data</span>') +
     `<br><span style="color:#64748b">${cats}</span>`;
+}
+
+// ── Contribute UI — reflect endpoint/consent state ──────────────────────────
+function initContributeUI() {
+  const ep = $('contributeEndpoint'); if (ep) ep.value = Contribute.getEndpoint();
+  const consent = $('chkContributeConsent'); if (consent) consent.checked = Contribute.hasConsent();
+  renderContributeUI();
+}
+function renderContributeUI() {
+  const btn = $('btnContribute');
+  const hint = $('contributeHint');
+  const configured = Contribute.isConfigured();
+  if (btn) btn.disabled = !configured;
+  if (hint) {
+    hint.innerHTML = configured
+      ? `Uploads this photo’s labels${Contribute.hasConsent() ? ' + the photo' : ' (features only)'} to the shared model. No name or email is sent.`
+      : `<span style="color:#fbbf24">Set the WormTrace upload URL below to enable contributing.</span> Your labels still train the on-device model meanwhile.`;
+  }
 }
 
 // ── Model export / merge / —──────────────────────────────────────────────────
