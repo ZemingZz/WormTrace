@@ -1,79 +1,75 @@
 /**
- * WelcomeScreen.js — first-launch welcome screen with onboarding instructions.
- * Shown once; localStorage key 'wt_welcomed' suppresses it on return visits.
+ * WelcomeScreen.js — first-launch INTRODUCTION, shown BEFORE the version chooser.
+ * Branded splash + a short carousel introducing WormTrace and its two versions
+ * (WormLab Light vs Full WormTrace). Call showIntro(onDone) from the launch flow;
+ * onDone() runs after the user finishes or skips (→ the version chooser).
+ * localStorage key 'wt_welcomed' suppresses the legacy in-app auto-popup.
  */
 
 const KEY = 'wt_welcomed';
 
 const STEPS = [
   {
+    icon: '🧫',
+    title: 'Welcome to WormTrace',
+    desc: 'A <i>Caenorhabditis elegans</i> (roundworm) toolkit for both the classroom and the research bench — track plates, count worms, model strains, and run experiments.',
+    tip: 'It comes in two versions — you’ll choose one in a moment.',
+  },
+  {
+    icon: '🎓',
+    title: 'WormLab — the Light version',
+    desc: 'A classroom worm lab. Students make a profile, join a group, track their plates and count worms in photos. Teachers watch every group live, run growth simulations, and set up genetic crosses (F1 → F2 → F3).',
+    tip: 'Pick “WormLab — Light” for a genetics course or a quick worm tracker.',
+  },
+  {
     icon: '🧪',
-    title: 'Start at Biotastic Lab',
-    desc: 'The home screen is your lab bench. Pick a model organism to open its toolkit — 🪱 C. elegans (worms) or 🪰 Drosophila (flies) — or open the 📚 Literature library.',
-    tip: 'Tap the small “ℹ What is…?” chip on a project to learn what each organism is used for.',
+    title: 'Full WormTrace',
+    desc: 'The complete research lab: strain & stock collections, interactive aging pathways, scalable protocols & assays, and growth simulators — plus the 🪰 Drosophila (fly) and 🧫 yeast projects.',
+    tip: 'Pick “Full WormTrace” for the whole research toolkit.',
   },
   {
     icon: '🧬',
-    title: 'Stock / Strain Collection',
-    desc: 'Browse every strain the lab works with — lifespans (incl. ♀/♂ where known), genotypes, pathways and sources. Tiles are colour-coded long- vs short-lived, with a survival-curve comparison.',
-    tip: 'Tap a tile for full stats. Edit any value, add your own strain, or “Standardize” to reset.',
-  },
-  {
-    icon: '🔗',
-    title: 'Pathways',
-    desc: 'An interactive aging-signalling network (insulin/IGF → FOXO, TOR, dauer/DR…). Your strains auto-tag onto the gene they affect — tap a chip to jump to its data.',
-    tip: 'Pinch / scroll to zoom, drag to pan. Sources are linked right under the graph.',
-  },
-  {
-    icon: '🧫',
-    title: 'Plate & Culture Trackers',
-    desc: 'Track cultures over time: C. elegans plates with a live growth simulator, or Drosophila vials/bottles with a flip schedule. The plate graphic animates worms, eggs, dauer and decay.',
-    tip: 'On a plate, tap 📊 Status → 🔮 Growth Simulator. Press ▶, add food, or tap the plate to zoom.',
-  },
-  {
-    icon: '📋',
-    title: 'Experiments & Procedures',
-    desc: 'Step-by-step protocols that scale to your batch size (NGM, fly food, bleaching, crosses…) plus full assays — lifespan, chemotaxis, climbing, drug & bacterial screening — with built-in result trackers.',
-    tip: 'Tap a card to expand it, set your volume, and tick off steps as you go (progress is saved).',
-  },
-  {
-    icon: '📚',
-    title: 'Literature',
-    desc: 'Every reference behind the app, split by organism (🪱 / 🪰) with an 🔗 Overlap tab showing where worm & fly aging research converge on the same conserved pathways.',
-    tip: 'Each protocol, assay and pathway also links its own source in-place.',
+    title: 'C. elegans in 30 seconds',
+    desc: 'A ~1 mm soil nematode with a fast ~3-day life cycle (egg → L1–L4 → adult), self-fertilizing hermaphrodites plus rare males, and a survival “dauer” stage — which makes it a genetics & aging workhorse.',
+    tip: 'Next: choose your version. You can switch anytime.',
   },
 ];
 
+let _onDone = null;
+
 export function checkWelcome() {
+  // Legacy auto-popup (used if the launch flow didn't run). The launch sets
+  // 'wt_welcomed' so this normally returns early and the new intro owns onboarding.
   if (localStorage.getItem(KEY)) return;
-  showWelcomeScreen();
+  showIntro(() => {});
 }
 
 export function resetWelcome() {
   localStorage.removeItem(KEY);
 }
 
-// ── Welcome screen ─────────────────────────────────────────────────────────────
-function showWelcomeScreen() {
+/** Show the introduction, then call onDone() (e.g. to open the version chooser). */
+export function showIntro(onDone) {
+  _onDone = onDone || function () {};
   const overlay = _makeOverlay('welcomeScreen');
   overlay.innerHTML = `
     <div class="wlc-box">
-      <div class="wlc-logo">🧪</div>
-      <h1 class="wlc-title">Biotastic Lab</h1>
-      <p class="wlc-sub">C. elegans &amp; Drosophila research toolkit</p>
-      <p class="wlc-sub2">Collections · pathways · culture trackers · protocols · literature</p>
+      <div class="wlc-logo">🧫</div>
+      <h1 class="wlc-title">WormTrace</h1>
+      <p class="wlc-sub">A C. elegans lab — classroom + research</p>
+      <p class="wlc-sub2">Next you’ll choose WormLab (Light) or Full WormTrace</p>
 
       <div class="wlc-actions">
         <button id="btnWlcNew" class="wlc-btn-primary">
-          👋 I'm New — Show Me How
+          👋 Show me around
         </button>
         <button id="btnWlcSkip" class="wlc-btn-secondary">
-          ✓ I Know the App — Let's Go
+          Skip intro →
         </button>
       </div>
 
       <div class="wlc-version">
-        Biotastic Lab · C. elegans &amp; Drosophila<br>
+        WormTrace · Biotastic Lab<br>
         <span style="color:#475569">Developed by Dr. Kailiang Jia, Zeming Zhang,<br>
         Victoria Daroch &amp; Christian Fior · Built using Claude</span>
       </div>
@@ -82,8 +78,8 @@ function showWelcomeScreen() {
   document.body.appendChild(overlay);
   _injectStyles();
 
-  document.getElementById('btnWlcNew').onclick   = () => showInstructions(overlay);
-  document.getElementById('btnWlcSkip').onclick  = () => _dismiss(overlay);
+  document.getElementById('btnWlcNew').onclick  = () => showInstructions(overlay);
+  document.getElementById('btnWlcSkip').onclick = () => _dismiss(overlay);
 }
 
 // ── Instructions (step carousel) ─────────────────────────────────────────────
@@ -111,10 +107,10 @@ function showInstructions(overlay) {
             : '<div></div>'}
           ${step < STEPS.length - 1
             ? `<button id="btnWlcNext" class="wlc-btn-primary" style="flex:2">Next →</button>`
-            : `<button id="btnWlcFinish" class="wlc-btn-primary" style="flex:2">Enter the Lab 🚀</button>`}
+            : `<button id="btnWlcFinish" class="wlc-btn-primary" style="flex:2">Choose my version →</button>`}
         </div>
 
-        <button id="btnWlcSkipAll" class="wlc-skip">Skip instructions</button>
+        <button id="btnWlcSkipAll" class="wlc-skip">Skip intro</button>
       </div>`;
 
     document.getElementById('btnWlcBack')?.addEventListener('click', () => { step--; render(); });
@@ -140,6 +136,8 @@ function _dismiss(overlay) {
   localStorage.setItem(KEY, 'true');
   overlay.classList.add('wlc-fade-out');
   setTimeout(() => overlay.remove(), 350);
+  const cb = _onDone; _onDone = null;
+  if (cb) setTimeout(cb, 360);
 }
 
 function _injectStyles() {

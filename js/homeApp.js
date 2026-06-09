@@ -22,6 +22,13 @@ window.WormTraceShowCeleHome = showCele;        // used by experimentsApp's back
 window.WormTraceShowDrosoHome = showDroso;      // used by flyExperimentsApp's back button
 window.WormTraceShowYeastHome = showYeast;      // used by yeast modules' back button
 
+// Jump straight to an organism's Pathways graph (used by the Literature Overlap Venn).
+window.WormTraceOpenPathway = (org) => {
+  if (org === 'fly') { ALL_OVERLAYS.forEach(hideEl); showEl('flyPath'); }
+  else if (org === 'yeast') { ALL_OVERLAYS.forEach(hideEl); showEl('yeastPath'); }
+  else { showApp(); (document.querySelector('.tab-btn[data-tab="pathwaysTab"]') || document.querySelector('.mobile-tab-btn[data-tab="pathwaysTab"]'))?.click(); }
+};
+
 function openTab(tabId) {
   showApp();
   const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);

@@ -13,6 +13,104 @@
   <link rel="stylesheet" href="css/iphone.css?v=153">
 </head>
 <body>
+
+<!-- ── Launch chooser: WormLab (Light) vs full WormTrace ── -->
+<div id="wtChooser" style="position:fixed;inset:0;z-index:4000;background:#0a0e1a;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;overflow-y:auto;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#e2e8f0">
+  <div style="font-size:30px;font-weight:800">🧫 WormTrace</div>
+  <div style="color:#94a3b8;margin-bottom:4px;text-align:center">Choose how you want to start</div>
+  <button id="wtPickLight" style="width:100%;max-width:380px;text-align:left;background:#0d2a22;
+    border:1.5px solid #14463a;border-radius:16px;padding:18px;color:#e2e8f0;cursor:pointer;min-height:unset">
+    <div style="font-size:18px;font-weight:800;color:#00d4aa">🎓 WormLab — Light version</div>
+    <div style="font-size:13px;color:#94a3b8;margin-top:6px;line-height:1.5">The classroom worm lab: plate tracker, worm counter, and live teacher ↔ student collaboration (groups, profiles, simulations, genetics crosses).</div>
+  </button>
+  <button id="wtPickFull" style="width:100%;max-width:380px;text-align:left;background:#111827;
+    border:1.5px solid #1e2a3a;border-radius:16px;padding:18px;color:#e2e8f0;cursor:pointer;min-height:unset">
+    <div style="font-size:18px;font-weight:800;color:#38bdf8">🧪 Full WormTrace</div>
+    <div style="font-size:13px;color:#94a3b8;margin-top:6px;line-height:1.5">The complete lab — strain collection, pathways, experiments &amp; procedures, growth simulators, plus the Drosophila and yeast projects.</div>
+  </button>
+  <div style="color:#475569;font-size:11px;margin-top:6px">You can switch versions anytime.</div>
+</div>
+<script>
+(function(){
+  // The launch flow owns onboarding, so suppress the legacy in-app auto-popup.
+  try { localStorage.setItem('wt_welcomed','true'); } catch(e){}
+  var ov = document.getElementById('wtChooser');
+  var params = new URLSearchParams(location.search);
+  var force = params.has('choose');          // ?choose=1 → jump straight to the chooser
+  var replayIntro = params.has('intro');     // ?intro=1  → replay the introduction
+  var choice = null, introSeen = null;
+  try { choice = localStorage.getItem('wtVersion'); introSeen = localStorage.getItem('wt_intro_seen'); } catch(e){}
+  function set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+
+  var FULL_CODE = 'worms';   // access code for Full WormTrace (placeholder for paid unlock)
+  function isUnlocked(){ try { return localStorage.getItem('wtFullUnlocked') === '1'; } catch(e){ return false; } }
+  function enterFull(){ set('wtVersion','full'); ov.style.display='none'; addSwitch(); }
+
+  document.getElementById('wtPickLight').onclick = function(){ set('wtVersion','light'); location.href = 'wormlab/index.html'; };
+  document.getElementById('wtPickFull').onclick  = function(){ if (isUnlocked()) enterFull(); else showUnlock(); };
+
+  function showUnlock(){
+    var u = document.getElementById('wtUnlock');
+    if (!u){
+      u = document.createElement('div'); u.id='wtUnlock';
+      u.style.cssText='position:fixed;inset:0;z-index:4100;background:rgba(0,0,0,.85);display:flex;'+
+        'align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px)';
+      u.innerHTML='<div style="background:#111827;border:1px solid #1e2a3a;border-radius:16px;padding:22px;'+
+        'max-width:340px;width:100%;text-align:center;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif">'+
+        '<div style="font-size:30px">🔒</div>'+
+        '<div style="font-size:18px;font-weight:800;margin:6px 0">Full WormTrace</div>'+
+        '<div style="font-size:13px;color:#94a3b8;margin-bottom:14px">Enter the access code to unlock the full research lab.</div>'+
+        '<input id="wtCode" type="password" placeholder="Access code" autocapitalize="none" autocorrect="off" spellcheck="false" '+
+        'style="width:100%;background:#0f172a;border:1px solid #1e2a3a;color:#e2e8f0;border-radius:10px;padding:11px;font-size:15px;min-height:44px">'+
+        '<div id="wtCodeMsg" style="color:#f87171;font-size:12px;min-height:16px;margin:6px 0"></div>'+
+        '<div style="display:flex;gap:10px;margin-top:2px">'+
+          '<button id="wtCodeCancel" style="flex:1;padding:11px;border-radius:10px;background:#1e2a3a;border:1px solid #2d3748;color:#94a3b8;font-weight:600;cursor:pointer;min-height:44px">Cancel</button>'+
+          '<button id="wtCodeGo" style="flex:1;padding:11px;border-radius:10px;background:#00d4aa;border:none;color:#022;font-weight:800;cursor:pointer;min-height:44px">Unlock</button>'+
+        '</div></div>';
+      document.body.appendChild(u);
+      document.getElementById('wtCodeCancel').onclick = function(){ u.style.display='none'; };
+      document.getElementById('wtCodeGo').onclick = tryCode;
+      document.getElementById('wtCode').addEventListener('keydown', function(e){ if (e.key==='Enter') tryCode(); });
+    }
+    u.style.display='flex';
+    var inp = document.getElementById('wtCode'); inp.value=''; document.getElementById('wtCodeMsg').textContent='';
+    setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 60);
+  }
+  function tryCode(){
+    var v = (document.getElementById('wtCode').value||'').trim().toLowerCase();
+    if (v === FULL_CODE){ try{ localStorage.setItem('wtFullUnlocked','1'); }catch(e){} document.getElementById('wtUnlock').style.display='none'; enterFull(); }
+    else { document.getElementById('wtCodeMsg').textContent = 'Incorrect code.'; }
+  }
+
+  function addSwitch(){
+    if (document.getElementById('wtSwitch')) return;
+    var b = document.createElement('button');
+    b.id='wtSwitch'; b.textContent='🎓 Lite'; b.title='Switch version';
+    b.style.cssText='position:fixed;left:10px;bottom:10px;z-index:3500;background:rgba(13,42,34,.92);'+
+      'color:#00d4aa;border:1px solid #14463a;border-radius:20px;padding:6px 12px;font-size:12px;'+
+      'cursor:pointer;min-height:unset;backdrop-filter:blur(6px);box-shadow:0 4px 16px rgba(0,0,0,.5)';
+    b.onclick=function(){ location.href='index.html?choose=1'; };
+    if (document.body) document.body.appendChild(b);
+    else document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(b); });
+  }
+  function route(){            // decide where to go after the (optional) intro
+    if (!force && choice === 'light') { location.href = 'wormlab/index.html'; }
+    else if (!force && choice === 'full' && isUnlocked()) { ov.style.display='none'; addSwitch(); }
+    else { ov.style.display='flex'; }
+  }
+  function afterIntro(){ set('wt_intro_seen','1'); route(); }
+
+  if (replayIntro || (!introSeen && !force)) {
+    // Show the INTRODUCTION first, then the version chooser.
+    import('./js/WelcomeScreen.js?v=147').then(function(m){ m.showIntro(afterIntro); }).catch(afterIntro);
+  } else {
+    route();
+  }
+})();
+</script>
+
 <div id="app" style="display:flex; flex-direction:column; height:100vh">
 
   <!-- ── Header ── -->
